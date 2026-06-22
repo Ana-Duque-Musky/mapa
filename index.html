@@ -39,6 +39,25 @@
 
     #map { width: 100%; height: 100%; }
 
+    body.shot-mode {
+      background: var(--bnw-200);
+    }
+    body.shot-mode #shell {
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      margin: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    body.shot-mode .overlay,
+    body.shot-mode .hint {
+      display: none !important;
+    }
+    body.shot-mode .maplibregl-ctrl {
+      display: none !important;
+    }
+
     .overlay {
       position: absolute; inset: 0; z-index: 2; pointer-events: none;
     }
@@ -594,6 +613,15 @@
   <script src="osm-places-bcn.js"></script>
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script>
+    const isScreenshotMode = new URLSearchParams(window.location.search).get('shot') === '1';
+
+    function applyScreenshotMode() {
+      if (!isScreenshotMode) return;
+      document.body.classList.add('shot-mode');
+      document.getElementById('shell')?.classList.add('shot-mode');
+    }
+    applyScreenshotMode();
+
     const COLORS = {
       vias: '#CFD1D3',       // bnw/500
       fondo: '#FAFAFA',      // bnw/200
@@ -748,25 +776,33 @@ out center;`;
         pitch: 0,
         bearing: 0,
         maxPitch: 0,
-        attributionControl: true,
+        attributionControl: !isScreenshotMode,
       });
 
       map.dragRotate.disable();
       map.touchZoomRotate.disableRotation();
       if (map.touchPitch) map.touchPitch.disable();
 
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+      if (!isScreenshotMode) {
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+      }
 
       map.on('moveend', () => {
+        if (isScreenshotMode) {
+          scheduleUrlSync();
+          return;
+        }
         if (hasActivePlaceView() && !placesLoading) renderPlacesList();
         schedulePlacesFetch();
         scheduleUrlSync();
       });
 
-      map.on('click', () => {
-        if (!hasActivePlaceView()) return;
-        if (placesDrawerOpen || placeDetailOpen) collapseDrawer();
-      });
+      if (!isScreenshotMode) {
+        map.on('click', () => {
+          if (!hasActivePlaceView()) return;
+          if (placesDrawerOpen || placeDetailOpen) collapseDrawer();
+        });
+      }
 
       map.on('load', async () => {
         applyMuskyColors();
@@ -777,6 +813,10 @@ out center;`;
         applyRoadCasingsVisibility(false);
         applyExtraNoiseVisibility(false);
         applyPedestrianPathFilters(false);
+        if (isScreenshotMode) {
+          scheduleUrlSync();
+          return;
+        }
         renderChips();
         await bootstrapPlacesData();
         applyUrlState(initialUrlState);
@@ -812,6 +852,7 @@ out center;`;
       if (!map) return window.location.href;
       const c = map.getCenter();
       const p = new URLSearchParams();
+      if (isScreenshotMode) p.set('shot', '1');
       if (activeFilter) p.set('f', activeFilter);
       if (placeSearchQuery.trim()) p.set('q', placeSearchQuery.trim());
       p.set('lat', c.lat.toFixed(5));
