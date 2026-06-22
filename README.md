@@ -2,30 +2,34 @@
 
 Preview del mapa personalizado (OpenStreetMap + estilo Musky) para Barcelona.
 
-## Ver online
+## Ver online (2 pasos)
 
-1. En el repo: **Settings → Pages → Build and deployment → Source: GitHub Actions** (solo la primera vez).
-2. Tras el workflow verde: **https://ana-duque-musky.github.io/mapa/**
+1. Abre **Settings → Pages** del repo:  
+   https://github.com/Ana-Duque-Musky/mapa/settings/pages
 
-Código: [github.com/Ana-Duque-Musky/mapa](https://github.com/Ana-Duque-Musky/mapa)
+2. Configura:
+   - **Source:** Deploy from a branch
+   - **Branch:** `main`
+   - **Folder:** `/ (root)`
+   - Guarda (**Save**)
+
+En 1–2 minutos estará en: **https://ana-duque-musky.github.io/mapa/**
+
+(No hace falta Actions ni workflows.)
 
 ## Archivos
 
 | Archivo | Descripción |
 |---|---|
-| `index.html` | Mapa interactivo (MapLibre + chips + lista + detalle) |
-| `osm-places-bcn.js` | POIs OSM Barcelona (~1300 lugares) |
+| `index.html` | Mapa interactivo |
+| `osm-places-bcn.js` | POIs OSM Barcelona |
 
-Sin backend, sin API keys. Tiles: [OpenFreeMap](https://openfreemap.org/).
+Sin backend, sin API keys.
 
-## Local
+## Repo
 
-Abrir `index.html` en un servidor estático (no `file://` para compartir enlace):
-
-```bash
-npx --yes serve -p 3456
-```
+https://github.com/Ana-Duque-Musky/mapa
 
 ## Privacidad
 
-Repo público = mapa visible para cualquiera con el enlace. Para uso interno, cambia el repo a **Private** en GitHub (Settings → Danger zone → Change visibility). GitHub Pages en repos privados requiere plan de pago; alternativa: [Netlify Drop](https://app.netlify.com/drop) con el zip de esta carpeta.
+Repo **público** = cualquiera con el enlace ve el mapa. Para uso interno, pon el repo en **Private** (Settings → Danger zone). GitHub Pages en repos privados requiere plan de pago; alternativa: [Netlify Drop](https://app.netlify.com/drop).
