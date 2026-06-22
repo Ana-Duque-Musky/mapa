@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Musky · Mapa PoC — colores custom OSM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Krub:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bnw-100: #ffffff;
+      --bnw-300: #eaebeb;
+      --bnw-500: #cfd1d3;
+      --bnw-700: #6c7074;
+      --bnw-800: #4e5255;
+      --bnw-900: #1e1f1f;
+      --pink-200: #fee6f0;
+      --pink-600: #f896bf;
+      --system-info-100: #e8f3ff;
+      --green-areas: #b6f1e0;
+      --beige-zones: #ddef9e;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font-family: "Krub", -apple-system, BlinkMacSystemFont, sans-serif; background: #111; }
+
+    #shell {
+      position: relative;
+      width: min(390px, 100vw);
+      height: min(844px, 100vh);
+      margin: 0 auto;
+      overflow: hidden;
+      border-radius: 28px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.35);
+      background: var(--bnw-100);
+    }
+
+    #map { width: 100%; height: 100%; }
+
+    .overlay {
+      position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    }
+    .overlay > * { pointer-events: auto; }
+
+    .top { padding: 14px 0 0; overflow: visible; }
+
+    .top-header { padding: 0 16px; }
+
+    .row { display: flex; align-items: center; gap: 10px; }
+    .row-title { flex: 1; min-width: 0; }
+
+    .icon-btn {
+      width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--bnw-300);
+      background: var(--bnw-100); box-shadow: 0 4px 12px rgba(30,31,31,.10);
+      display: grid; place-items: center; cursor: pointer; color: var(--bnw-700);
+    }
+
+    .title { margin: 0; font-size: 16px; font-weight: 600; color: var(--bnw-700); }
+    .subtitle { margin: 2px 0 0; font-size: 13px; font-weight: 400; color: var(--bnw-700); }
+
+    .search-bar {
+      padding: 10px 16px 0;
+    }
+    .search-input {
+      width: 100%;
+      height: 40px;
+      padding: 0 14px;
+      border: 1px solid var(--bnw-300);
+      border-radius: 20px;
+      background: var(--bnw-100);
+      box-shadow: 0 2px 8px rgba(30,31,31,.06);
+      font: 400 14px/20px "Krub", sans-serif;
+      color: var(--bnw-900);
+    }
+    .search-input::placeholder { color: var(--bnw-700); }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--pink-600);
+      box-shadow: 0 0 0 2px rgba(248,150,191,.25);
+    }
+
+    .chips-scroll {
+      margin-top: 12px;
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: 4px 0 6px;
+    }
+    .chips-scroll::-webkit-scrollbar { display: none; }
+
+    .chips-track {
+      display: inline-flex;
+      gap: 8px;
+      padding: 0 16px;
+    }
+
+    .chip {
+      flex: 0 0 auto;
+      height: 40px; padding: 4px 16px;
+      border-radius: 24px; border: none;
+      background: var(--bnw-100);
+      box-shadow: 0 2px 8px rgba(30,31,31,.08);
+      color: var(--bnw-700);
+      font: 600 16px/24px "Krub", sans-serif;
+      white-space: nowrap; cursor: pointer;
+    }
+    .chip.active {
+      background: var(--pink-200);
+      box-shadow: 0 2px 8px rgba(30,31,31,.08), inset 0 0 0 2px var(--pink-600);
+    }
+
+    .chips-loading {
+      padding: 0 16px;
+      font: 400 13px/20px "Krub", sans-serif;
+      color: var(--bnw-700);
+    }
+
+    .legend {
+      position: absolute; left: 16px; bottom: 16px; right: 16px;
+      background: rgba(255,255,255,.94); border: 1px solid var(--bnw-300);
+      border-radius: 16px; padding: 10px 12px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px;
+      font: 400 11px/16px "Krub", sans-serif;
+      color: var(--bnw-700);
+      backdrop-filter: blur(8px);
+      transition: opacity .2s, transform .2s;
+    }
+    .legend.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-toggle {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--bnw-300);
+      margin-bottom: 2px;
+    }
+    .legend-toggle span { font-size: 11px; color: var(--bnw-800); }
+    .legend-toggle button {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 14px;
+      border: 1px solid var(--bnw-300);
+      background: var(--bnw-100);
+      color: var(--bnw-700);
+      font: 600 11px/16px "Krub", sans-serif;
+      cursor: pointer;
+    }
+    .legend-toggle button.on {
+      background: var(--pink-200);
+      border-color: var(--pink-600);
+    }
+    .swatch { width: 14px; height: 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.06); flex-shrink: 0; }
+
+    .pin-wrap {
+      cursor: pointer;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+      width: max-content;
+      max-width: 200px;
+    }
+    .pin-wrap.selected .pin-label {
+      background: var(--pink-200);
+      border-color: var(--pink-600);
+      color: var(--bnw-900);
+    }
+    .pin {
+      position: relative;
+      width: 54px;
+      height: 60px;
+      flex-shrink: 0;
+    }
+    .pin-shape {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      display: block;
+      width: 34px;
+      height: 40px;
+    }
+    .pin-icon {
+      position: absolute;
+      left: 15px;
+      top: 14px;
+      width: 24px;
+      height: 23px;
+      border-radius: 12px;
+      background: var(--bnw-100);
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .pin-label {
+      flex-shrink: 1;
+      min-width: 0;
+      padding: 4px 8px;
+      max-width: 132px;
+      background: rgba(255,255,255,.96);
+      border: 1px solid var(--bnw-300);
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(30,31,31,.10);
+      font: 600 11px/14px "Krub", sans-serif;
+      color: var(--bnw-800);
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .places-drawer {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 5;
+      background: var(--bnw-100);
+      border-top: 1px solid var(--bnw-300);
+      border-radius: 20px 20px 0 0;
+      box-shadow: 0 -8px 32px rgba(30,31,31,.12);
+      max-height: min(52%, 420px);
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform .28s ease;
+    }
+    .places-drawer.open-list,
+    .places-drawer.open-detail { transform: translateY(0); }
+    .places-drawer.empty { pointer-events: none; }
+
+    .places-panel-hidden { display: none !important; }
+
+    .places-drawer-handle {
+      width: 40px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--bnw-500);
+      margin: 8px auto 0;
+      flex-shrink: 0;
+    }
+    .places-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 16px 8px;
+      flex-shrink: 0;
+    }
+    .places-drawer-title {
+      font: 600 16px/24px "Krub", sans-serif;
+      color: var(--bnw-900);
+    }
+    .places-drawer-count {
+      font: 600 13px/20px "Krub", sans-serif;
+      color: var(--bnw-700);
+      background: var(--pink-200);
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+    .places-drawer-hint {
+      padding: 0 16px 12px;
+      font: 400 13px/20px "Krub", sans-serif;
+      color: var(--bnw-700);
+    }
+    .places-list {
+      list-style: none;
+      margin: 0;
+      padding: 0 8px 12px;
+      overflow-y: auto;
+      flex: 1;
+      -webkit-overflow-scrolling: touch;
+    }
+    .places-list-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 10px 8px;
+      border: none;
+      border-radius: 14px;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+    .places-list-item:hover,
+    .places-list-item.active {
+      background: var(--pink-200);
+    }
+    .places-list-body { min-width: 0; flex: 1; }
+    .places-list-name {
+      font: 600 14px/20px "Krub", sans-serif;
+      color: var(--bnw-900);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .places-list-meta {
+      font: 400 12px/16px "Krub", sans-serif;
+      color: var(--bnw-700);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #places-detail-panel {
+      overflow-y: auto;
+      flex: 1;
+      padding: 0 16px 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .show-list-btn {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      z-index: 6;
+      height: 44px;
+      padding: 0 18px;
+      border: 1px solid var(--bnw-300);
+      border-radius: 22px;
+      background: var(--bnw-100);
+      box-shadow: 0 4px 16px rgba(30,31,31,.14);
+      font: 600 15px/20px "Krub", sans-serif;
+      color: var(--bnw-800);
+      cursor: pointer;
+    }
+    .show-list-btn.hidden { display: none; }
+
+    .share-toast {
+      position: absolute;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      max-width: calc(100% - 32px);
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(30,31,31,.92);
+      color: #fff;
+      font: 400 13px/18px "Krub", sans-serif;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .share-toast.visible { opacity: 1; }
+
+    .place-detail {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .place-modal-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .place-modal-emoji {
+      width: 48px;
+      height: 48px;
+      border-radius: 24px;
+      background: var(--pink-200);
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .place-modal-head { min-width: 0; flex: 1; }
+    .place-modal-name {
+      margin: 0;
+      font: 600 18px/24px "Krub", sans-serif;
+      color: var(--bnw-900);
+    }
+    .place-modal-category {
+      margin: 2px 0 0;
+      font: 400 13px/20px "Krub", sans-serif;
+      color: var(--bnw-700);
+    }
+    .place-modal-close {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--bnw-300);
+      border-radius: 999px;
+      background: var(--bnw-100);
+      color: var(--bnw-700);
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .place-modal-info {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .place-info-row {
+      display: grid;
+      gap: 2px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--bnw-300);
+    }
+    .place-info-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .place-info-label {
+      font: 600 11px/16px "Krub", sans-serif;
+      color: var(--bnw-700);
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+    .place-info-value {
+      font: 400 14px/20px "Krub", sans-serif;
+      color: var(--bnw-900);
+      word-break: break-word;
+    }
+    .place-info-value a { color: var(--bnw-800); }
+    .place-modal-actions { display: grid; gap: 8px; }
+    .place-modal-btn {
+      height: 44px;
+      border: none;
+      border-radius: 22px;
+      font: 600 16px/24px "Krub", sans-serif;
+      cursor: pointer;
+    }
+    .place-modal-btn.primary {
+      background: var(--pink-600);
+      color: var(--bnw-100);
+    }
+    .place-modal-btn.secondary {
+      background: var(--bnw-100);
+      color: var(--bnw-800);
+      border: 1px solid var(--bnw-300);
+    }
+    .place-modal-empty {
+      font: 400 13px/20px "Krub", sans-serif;
+      color: var(--bnw-700);
+      margin: 0 0 12px;
+    }
+
+    .hint {
+      position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(30,31,31,.88); color: #fff; padding: 8px 14px;
+      border-radius: 999px; font: 400 12px/16px "Krub", sans-serif; z-index: 99;
+    }
+
+    .maplibregl-marker {
+      width: auto !important;
+      height: auto !important;
+    }
+    .maplibregl-marker > * {
+      width: auto;
+      height: auto;
+    }
+
+    .maplibregl-ctrl-attrib,
+    .maplibregl-ctrl-attrib a,
+    .maplibregl-popup-content {
+      font-family: "Krub", sans-serif !important;
+      color: var(--bnw-700) !important;
+    }
+    .maplibregl-ctrl-attrib { font-size: 10px !important; }
+  </style>
+</head>
+<body>
+  <div id="shell">
+    <div id="map"></div>
+    <div class="overlay">
+      <div class="top">
+        <div class="top-header">
+          <div class="row">
+            <button class="icon-btn" aria-label="Atrás">←</button>
+            <div class="row-title">
+              <h1 class="title">Mapa Musky</h1>
+              <p class="subtitle">Prueba · mapa personalizado OpenStreetMap</p>
+            </div>
+            <button class="icon-btn" id="share-btn" aria-label="Compartir mapa" title="Compartir enlace">⤴</button>
+          </div>
+        </div>
+        <div class="share-toast" id="share-toast" role="status"></div>
+        <div class="search-bar">
+          <input
+            type="search"
+            id="places-search"
+            class="search-input"
+            placeholder="Buscar… pipicans, parques, fuentes"
+            autocomplete="off"
+          />
+        </div>
+        <div class="chips-scroll">
+          <div class="chips-track" id="chips"></div>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <button type="button" class="show-list-btn hidden" id="show-list-btn">Ver lista</button>
+      <div class="places-drawer collapsed empty" id="places-drawer">
+        <div class="places-drawer-handle" id="places-drawer-handle"></div>
+        <div id="places-list-panel">
+          <div class="places-drawer-header">
+            <span class="places-drawer-title" id="places-drawer-title">Lugares</span>
+            <span class="places-drawer-count" id="places-count"></span>
+          </div>
+          <p class="places-drawer-hint" id="places-drawer-hint">Elige una categoría para ver la lista</p>
+          <ul class="places-list" id="places-list"></ul>
+        </div>
+        <div id="places-detail-panel" class="places-panel-hidden"></div>
+      </div>
+    </div>
+  </div>
+  <div class="hint">Compartir ⤴ · el enlace guarda categoría, búsqueda y posición del mapa</div>
+
+  <script src="osm-places-bcn.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <script>
+    const COLORS = {
+      vias: '#CFD1D3',       // bnw/500
+      fondo: '#FAFAFA',      // bnw/200
+      areasVerdes: '#B6F1E0',
+      zonasBeige: '#DDEF9E',
+      zonas: '#FEE6F0',      // pink/200
+      mar: '#E8F3FF',        // systemInfo/100
+      edificios: '#FFF3E3',  // yellow/100
+      text: '#6C7074',       // bnw/700
+    };
+
+    // Edificios visibles ~2 niveles antes que escala 50 m (~zoom 15.75 en Barcelona)
+    const BUILDING_MIN_ZOOM = (() => {
+      const lat = 41.4065;
+      const meters = 50;
+      const metersPerPixel = meters / 100;
+      const z = Math.log2(
+        156543.03392 * Math.cos(lat * Math.PI / 180) / metersPerPixel,
+      );
+      return Math.max(15, Math.floor(z * 4) / 4 - 2);
+    })();
+
+    const MAP_FONT = ['Krub'];
+
+    // Bordes/contornos de calzada (línea doble junto a cada vía)
+    const EXTRA_NOISE_LAYERS = [
+      'road_major_rail_hatching',
+      'road_transit_rail_hatching',
+      'road_one_way_arrow',
+      'road_one_way_arrow_opposite',
+    ];
+
+    const chips = [
+      { id: 'park', label: '🌳  Parques' },
+      { id: 'dog', label: '🐶  Parque para perros' },
+      { id: 'vet', label: '🏥  Veterinarios' },
+      { id: 'fountain', label: '⛲  Fuentes de agua' },
+      { id: 'beach', label: '🏖️  Playa de perros' },
+    ];
+
+    const CATEGORY_SEARCH_ALIASES = {
+      park: ['parque', 'parques', 'jardín', 'jardin'],
+      dog: ['pipican', 'pipicans', 'parque para perros', 'parque perros', 'parque de perros', 'gossos', 'correcan', 'correcà', 'area gossos'],
+      vet: ['veterinario', 'veterinarios', 'veterinaria', 'clínica veterinaria', 'clinica veterinaria'],
+      fountain: ['fuente', 'fuentes', 'agua', 'bebedero', 'bebederos'],
+      beach: ['playa', 'playa perros', 'playa de perros'],
+    };
+
+    const PLACE_EMOJI = {
+      park: '🌳',
+      dog: '🐶',
+      fountain: '⛲',
+      vet: '🏥',
+      beach: '🏖️',
+    };
+
+    const DEFAULT_PLACE_NAME = {
+      park: 'Parque',
+      dog: 'Parque para perros',
+      fountain: 'Fuente de agua',
+      vet: 'Veterinario',
+      beach: 'Playa de perros',
+    };
+
+    const CATEGORY_LABEL = {
+      park: 'Parque',
+      dog: 'Parque para perros',
+      fountain: 'Fuente de agua',
+      vet: 'Veterinario',
+      beach: 'Playa de perros',
+    };
+
+    const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+    const OVERPASS_QUERY = `[out:json][timeout:30];
+(
+  node["leisure"="dog_park"](41.35,2.08,41.44,2.24);
+  way["leisure"="dog_park"](41.35,2.08,41.44,2.24);
+  node["amenity"="drinking_water"](41.35,2.08,41.44,2.24);
+  node["amenity"="veterinary"](41.35,2.08,41.44,2.24);
+  way["leisure"="park"]["name"](41.35,2.08,41.44,2.24);
+  node["leisure"="beach"]["dog"="yes"](41.35,2.08,41.44,2.24);
+  way["leisure"="beach"]["dog"="yes"](41.35,2.08,41.44,2.24);
+);
+out center;`;
+
+    const OSM_POI_LAYERS = ['poi_r1', 'poi_r7', 'poi_r20'];
+    const VALID_FILTERS = new Set(['park', 'dog', 'vet', 'fountain', 'beach']);
+
+    const initialUrlState = parseUrlState();
+    let urlSyncSuspended = false;
+    let urlSyncTimer = null;
+
+    // Respaldo si Overpass no responde (coords OSM reales, zona Barcelona).
+    const FALLBACK_OSM_ELEMENTS = [
+      { id: 1, lat: 41.4065, lon: 2.1478, tags: { leisure: 'park', 'name:es': 'Parc del Putxet i el Farró' } },
+      { id: 2, lat: 41.4033, lon: 2.1442, tags: { leisure: 'park', name: 'Parc de la Guineueta' } },
+      { id: 3, lat: 41.4098, lon: 2.1521, tags: { leisure: 'park', name: 'Jardins de la Tamarita' } },
+      { id: 4, lat: 41.4012, lon: 2.1395, tags: { leisure: 'dog_park', name: 'Pipican Sarrià' } },
+      { id: 5, lat: 41.3865, lon: 2.1369, tags: { leisure: 'dog_park' } },
+      { id: 6, lat: 41.4076, lon: 2.1496, tags: { amenity: 'drinking_water' } },
+      { id: 7, lat: 41.4064, lon: 2.1499, tags: { amenity: 'drinking_water' } },
+      { id: 8, lat: 41.4053, lon: 2.1616, tags: { amenity: 'drinking_water', name: 'Font de la Caputxeta' } },
+      { id: 9, lat: 41.4053, lon: 2.1612, tags: { amenity: 'veterinary', name: 'Centre Veterinari Joanic' } },
+      { id: 10, lat: 41.4027, lon: 2.1596, tags: { amenity: 'veterinary', name: 'Kiwi Mascotas' } },
+      { id: 11, lat: 41.4206, lon: 2.1407, tags: { amenity: 'veterinary', name: 'Consultori Veterinari Amazonas' } },
+      { id: 12, lat: 41.3817, lon: 2.2125, tags: { leisure: 'beach', dog: 'yes', name: 'Platja de Llevant' } },
+    ];
+
+    let muskyPlaces = [];
+    let placesLoading = true;
+    let selectedPlaceId = null;
+    let placesDrawerOpen = false;
+    let placeDetailOpen = false;
+    let placeSearchQuery = '';
+
+    let activeFilter = null;
+    let showRoadCasings = false;
+    let showSidewalks = false;
+    const markers = [];
+    let map;
+
+    async function loadKrubFonts() {
+      await Promise.all([
+        document.fonts.load('400 12px "Krub"'),
+        document.fonts.load('600 16px "Krub"'),
+      ]);
+      await document.fonts.ready;
+    }
+
+    async function initMap() {
+      await loadKrubFonts();
+
+      map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        transformStyle: (_previous, next) => {
+          delete next.glyphs;
+          return next;
+        },
+        center: [
+          Number.isFinite(initialUrlState.lng) ? initialUrlState.lng : 2.1478,
+          Number.isFinite(initialUrlState.lat) ? initialUrlState.lat : 41.4065,
+        ],
+        zoom: Number.isFinite(initialUrlState.z) ? initialUrlState.z : 14.2,
+        pitch: 0,
+        bearing: 0,
+        maxPitch: 0,
+        attributionControl: true,
+      });
+
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      if (map.touchPitch) map.touchPitch.disable();
+
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+
+      map.on('moveend', () => {
+        if (hasActivePlaceView() && !placesLoading) renderPlacesList();
+        scheduleUrlSync();
+      });
+
+      map.on('load', async () => {
+        applyMuskyColors();
+        applySpanishLabels();
+        applyMapTypography();
+        applyTransitFilters();
+        hideOsmPoiLayers();
+        applyRoadCasingsVisibility(showRoadCasings);
+        applyExtraNoiseVisibility(false);
+        applyPedestrianPathFilters(showSidewalks);
+        renderLegend();
+        renderChips();
+        muskyPlaces = await loadMuskyPlacesFromOsm();
+        placesLoading = false;
+        applyUrlState(initialUrlState);
+        renderChips();
+        renderMarkers();
+        renderPlacesList();
+        setupPlacesDrawer();
+        setupSearch();
+        setupShare();
+        scheduleUrlSync();
+      });
+    }
+
+    function parseUrlState() {
+      const p = new URLSearchParams(window.location.search);
+      const view = p.get('view');
+      return {
+        filter: VALID_FILTERS.has(p.get('f')) ? p.get('f') : null,
+        q: p.get('q') || '',
+        lat: parseFloat(p.get('lat')),
+        lng: parseFloat(p.get('lng')),
+        z: parseFloat(p.get('z')),
+        place: p.get('place') || null,
+        view: view === 'list' || view === 'detail' || view === 'map' ? view : null,
+      };
+    }
+
+    function buildShareUrl() {
+      if (!map) return window.location.href;
+      const c = map.getCenter();
+      const p = new URLSearchParams();
+      if (activeFilter) p.set('f', activeFilter);
+      if (placeSearchQuery.trim()) p.set('q', placeSearchQuery.trim());
+      p.set('lat', c.lat.toFixed(5));
+      p.set('lng', c.lng.toFixed(5));
+      p.set('z', map.getZoom().toFixed(2));
+      if (selectedPlaceId) p.set('place', selectedPlaceId);
+      if (placeDetailOpen) p.set('view', 'detail');
+      else if (placesDrawerOpen) p.set('view', 'list');
+      else if (hasActivePlaceView()) p.set('view', 'map');
+      const qs = p.toString();
+      return `${window.location.origin}${window.location.pathname}${qs ? `?${qs}` : ''}`;
+    }
+
+    function scheduleUrlSync() {
+      if (urlSyncSuspended || !map) return;
+      clearTimeout(urlSyncTimer);
+      urlSyncTimer = setTimeout(() => {
+        history.replaceState(null, '', buildShareUrl());
+      }, 200);
+    }
+
+    function applyUrlState(state) {
+      urlSyncSuspended = true;
+
+      if (state.filter) activeFilter = state.filter;
+      if (state.q) {
+        placeSearchQuery = state.q;
+        const searchEl = document.getElementById('places-search');
+        if (searchEl) searchEl.value = state.q;
+      }
+
+      placeDetailOpen = false;
+      placesDrawerOpen = false;
+
+      if (state.view === 'list') placesDrawerOpen = true;
+      if (state.place) {
+        const place = muskyPlaces.find(item => item.id === state.place);
+        if (place) {
+          selectedPlaceId = place.id;
+          if (state.view === 'detail') {
+            placeDetailOpen = true;
+            renderPlaceDetail(place);
+          }
+        }
+      }
+
+      urlSyncSuspended = false;
+    }
+
+    let shareToastTimer = null;
+    function showShareToast(message) {
+      const toast = document.getElementById('share-toast');
+      toast.textContent = message;
+      toast.classList.add('visible');
+      clearTimeout(shareToastTimer);
+      shareToastTimer = setTimeout(() => toast.classList.remove('visible'), 3200);
+    }
+
+    async function shareMapLink() {
+      const url = buildShareUrl();
+
+      if (window.location.protocol === 'file:') {
+        showShareToast('Para compartir, publica docs/map-poc en Netlify o GitHub Pages.');
+        return;
+      }
+
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: 'Mapa Musky', text: 'Mapa Musky · Barcelona', url });
+          return;
+        }
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(url);
+        showShareToast('Enlace copiado al portapapeles');
+      } catch (_) {
+        showShareToast(url);
+      }
+    }
+
+    function setupShare() {
+      document.getElementById('share-btn').onclick = shareMapLink;
+    }
+
+    function applyMuskyColors() {
+      const setFill = (id, color) => { if (map.getLayer(id)) map.setPaintProperty(id, 'fill-color', color); };
+      const setLine = (id, color) => { if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', color); };
+      const setBg = (id, color) => { if (map.getLayer(id)) map.setPaintProperty(id, 'background-color', color); };
+
+      setBg('background', COLORS.fondo);
+      if (map.getLayer('natural_earth')) map.setPaintProperty('natural_earth', 'raster-opacity', 0);
+
+      setFill('water', COLORS.mar);
+      ['waterway_river', 'waterway_other', 'waterway_tunnel'].forEach(id => setLine(id, COLORS.mar));
+
+      ['park', 'landcover_grass', 'landcover_wood', 'landuse_pitch', 'landuse_track'].forEach(id => setFill(id, COLORS.areasVerdes));
+      if (map.getLayer('park_outline')) setLine('park_outline', COLORS.areasVerdes);
+
+      ['landuse_residential', 'landcover_sand', 'landuse_school', 'landuse_cemetery'].forEach(id => setFill(id, COLORS.zonasBeige));
+      setFill('building', COLORS.edificios);
+      applyBuildingStyle();
+
+      // Mapa 2D: ocultar extrusión 3D de edificios
+      if (map.getLayer('building-3d')) {
+        map.setLayoutProperty('building-3d', 'visibility', 'none');
+      }
+
+      const roads = [
+        'road_motorway', 'road_motorway_link', 'road_trunk_primary', 'road_secondary_tertiary',
+        'road_minor', 'road_link', 'road_service_track',
+      ];
+      roads.forEach(id => setLine(id, COLORS.vias));
+
+      applyRoadWidths();
+    }
+
+    function applyBuildingStyle() {
+      if (!map.getLayer('building')) return;
+      map.setLayerZoomRange('building', BUILDING_MIN_ZOOM, 24);
+      map.setPaintProperty('building', 'fill-color', COLORS.edificios);
+      map.setPaintProperty('building', 'fill-outline-color', COLORS.edificios);
+    }
+
+    // Aceras urbanas OSM (subclass). No incluir footway: en parques los senderos suelen ser footway.
+    const STREET_SIDEWALK_SUBCLASSES = ['sidewalk', 'crossing', 'steps'];
+    const PEDESTRIAN_PATH_LAYERS = [
+      { id: 'road_path_pedestrian', surface: true },
+      { id: 'tunnel_path_pedestrian', brunnel: 'tunnel' },
+      { id: 'bridge_path_pedestrian', brunnel: 'bridge' },
+    ];
+
+    function parkPathFilter(brunnel) {
+      const base = [
+        ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false],
+        ['==', ['get', 'class'], 'path'],
+        ['!', ['in', ['get', 'subclass'], ['literal', STREET_SIDEWALK_SUBCLASSES]]],
+      ];
+      if (brunnel === true) {
+        return ['all', ...base, ['match', ['get', 'brunnel'], ['bridge', 'tunnel'], false, true]];
+      }
+      return ['all', ...base, ['==', ['get', 'brunnel'], brunnel]];
+    }
+
+    function allPedestrianPathFilter(brunnel) {
+      const base = [
+        ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false],
+        ['match', ['get', 'class'], ['path', 'pedestrian'], true, false],
+      ];
+      if (brunnel === true) {
+        return ['all', ...base, ['match', ['get', 'brunnel'], ['bridge', 'tunnel'], false, true]];
+      }
+      return ['all', ...base, ['==', ['get', 'brunnel'], brunnel]];
+    }
+
+    function applyPedestrianPathFilters(showSidewalks) {
+      const filterFor = showSidewalks ? allPedestrianPathFilter : parkPathFilter;
+
+      PEDESTRIAN_PATH_LAYERS.forEach(({ id, surface, brunnel }) => {
+        if (!map.getLayer(id)) return;
+        map.setFilter(id, filterFor(surface ? true : brunnel));
+        map.setPaintProperty(id, 'line-color', COLORS.vias);
+        map.setPaintProperty(id, 'line-dasharray', [1, 0]);
+      });
+
+      if (map.getLayer('bridge_path_pedestrian_casing')) {
+        map.setLayoutProperty(
+          'bridge_path_pedestrian_casing',
+          'visibility',
+          showSidewalks ? 'visible' : 'none',
+        );
+      }
+
+      if (map.getLayer('highway-name-path')) {
+        map.setFilter(
+          'highway-name-path',
+          showSidewalks
+            ? ['==', ['get', 'class'], 'path']
+            : ['all',
+              ['==', ['get', 'class'], 'path'],
+              ['!', ['in', ['get', 'subclass'], ['literal', STREET_SIDEWALK_SUBCLASSES]]],
+            ],
+        );
+      }
+    }
+
+    function toggleSidewalks() {
+      showSidewalks = !showSidewalks;
+      applyPedestrianPathFilters(showSidewalks);
+      renderLegend();
+    }
+
+    function roadWidthExpr(stops) {
+      return ['interpolate', ['exponential', 1.2], ['zoom'], ...stops];
+    }
+
+    function railWidthExpr(stops) {
+      return ['interpolate', ['exponential', 1.4], ['zoom'], ...stops];
+    }
+
+    function scaleRoadStops(stops, factor = 0.775) {
+      const scaled = [];
+      for (let i = 0; i < stops.length; i += 2) {
+        scaled.push(stops[i], +(stops[i + 1] * factor).toFixed(2));
+      }
+      return scaled;
+    }
+
+    // Punto medio entre Liberty (100%) y el ajuste fino anterior (~55%) → ~77.5%
+    function applyRoadWidths() {
+      const factor = 0.775;
+      const widths = {
+        major: roadWidthExpr(scaleRoadStops([5, 0, 7, 1, 20, 18], factor)),
+        secondary: roadWidthExpr(scaleRoadStops([6.5, 0, 8, 0.5, 20, 13], factor)),
+        minor: roadWidthExpr(scaleRoadStops([13.5, 0, 14, 2.5, 20, 18], factor)),
+        link: roadWidthExpr(scaleRoadStops([12.5, 0, 13, 1.5, 14, 2.5, 20, 11.5], factor)),
+        service: roadWidthExpr(scaleRoadStops([15.5, 0, 16, 2, 20, 7.5], factor)),
+        path: roadWidthExpr(scaleRoadStops([14, 1, 20, 10], factor)),
+        rail: railWidthExpr(scaleRoadStops([14, 0.4, 15, 0.75, 20, 2], factor)),
+      };
+
+      const layerWidth = [
+        ['motorway_link', 'link'], ['path_pedestrian', 'path'],
+        ['secondary_tertiary', 'secondary'], ['service_track', 'service'],
+        ['trunk_primary', 'major'], ['motorway', 'major'], ['minor', 'minor'],
+        ['_link', 'link'], ['major_rail', 'rail'], ['transit_rail', 'rail'],
+      ];
+
+      for (const layer of map.getStyle().layers) {
+        if (layer.type !== 'line') continue;
+        const match = layerWidth.find(([key]) => layer.id.includes(key));
+        if (!match) continue;
+        if (layer.id.includes('casing') || layer.id.includes('hatching') || layer.id.includes('arrow')) continue;
+        map.setPaintProperty(layer.id, 'line-width', widths[match[1]]);
+      }
+    }
+
+    function getRoadCasingLayers() {
+      return map.getStyle().layers
+        .filter(l => l.type === 'line' && l.id.includes('casing'))
+        .map(l => l.id);
+    }
+
+    function applyRoadCasingsVisibility(visible) {
+      getRoadCasingLayers().forEach(id => {
+        map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+        if (visible) {
+          map.setPaintProperty(id, 'line-color', COLORS.fondo);
+        }
+      });
+    }
+
+    function applyExtraNoiseVisibility(visible) {
+      EXTRA_NOISE_LAYERS.forEach(id => {
+        if (!map.getLayer(id)) return;
+        map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+      });
+    }
+
+    function toggleRoadCasings() {
+      showRoadCasings = !showRoadCasings;
+      applyRoadCasingsVisibility(showRoadCasings);
+      renderLegend();
+    }
+
+    // Etiquetas del mapa en castellano (prioriza name:es de OSM).
+    const SPANISH_NAME = ['coalesce', ['get', 'name:es'], ['get', 'name'], ['get', 'name:latin'], ''];
+
+    function applySpanishLabels() {
+      for (const layer of map.getStyle().layers) {
+        if (layer.type !== 'symbol') continue;
+        const layout = layer.layout || {};
+        if (!layout['text-field']) continue;
+
+        const id = layer.id;
+        // Escudos de carretera usan ref, no nombre
+        if (/shield|ref|hatching/i.test(id)) continue;
+
+        try {
+          map.setLayoutProperty(id, 'text-field', SPANISH_NAME);
+        } catch (_) { /* expresión no compatible */ }
+      }
+    }
+
+    function applyMapTypography() {
+      for (const layer of map.getStyle().layers) {
+        if (layer.type !== 'symbol') continue;
+        const layout = layer.layout || {};
+        if (!layout['text-field']) continue;
+
+        const id = layer.id;
+        try {
+          map.setPaintProperty(id, 'text-color', COLORS.text);
+          map.setPaintProperty(id, 'text-halo-color', COLORS.fondo);
+          map.setPaintProperty(id, 'text-halo-width', 1.2);
+          map.setLayoutProperty(id, 'text-font', MAP_FONT);
+        } catch (_) { /* capa sin text paint */ }
+      }
+    }
+
+    function applyTransitFilters() {
+      // Solo metro/tren (class=rail). Sin bus ni aeropuertos.
+      if (map.getLayer('poi_transit')) {
+        map.setFilter('poi_transit', ['==', ['get', 'class'], 'rail']);
+      }
+    }
+
+    function classifyOsmElement(tags) {
+      if (tags.leisure === 'dog_park') return 'dog';
+      if (tags.amenity === 'drinking_water') return 'fountain';
+      if (tags.amenity === 'veterinary') return 'vet';
+      if (tags.leisure === 'park') return 'park';
+      if (tags.leisure === 'beach' && (tags.dog === 'yes' || tags.dog === 'designated')) return 'beach';
+      return null;
+    }
+
+    function extractPlaceName(tags, type) {
+      const osmName = (tags['name:es'] || tags.name || tags['name:ca'] || '').trim();
+      return {
+        name: osmName || DEFAULT_PLACE_NAME[type],
+        hasCustomName: Boolean(osmName),
+      };
+    }
+
+    function buildPlaceInfo(tags, type) {
+      const rows = [];
+      const add = (label, value) => {
+        if (value == null) return;
+        const text = String(value).trim();
+        if (!text) return;
+        rows.push({ label, value: text });
+      };
+
+      const address = tags['addr:full']
+        || [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(' ')
+        || tags['addr:place'];
+      add('Dirección', address);
+      add('Horario', tags.opening_hours);
+      add('Teléfono', tags.phone || tags['contact:phone']);
+      add('Web', tags.website || tags['contact:website']);
+      add('Operador', tags.operator);
+      add('Acceso', tags.access);
+      if (tags.fee === 'no') add('Gratuito', 'Sí');
+      else if (tags.fee === 'yes') add('De pago', 'Sí');
+      else add('Tarifa', tags.fee);
+
+      if (type === 'fountain') {
+        if (tags.bottle === 'yes') add('Agua embotellada', 'Sí');
+        add('Referencia', tags.ref);
+        add('Tipo', tags.man_made);
+      }
+      if (type === 'dog' || type === 'beach') add('Perros', tags.dog);
+      if (type === 'vet') {
+        add('Urgencias', tags.emergency);
+        add('Cita previa', tags['appointment']);
+      }
+      add('Descripción', tags.description);
+      add('Wikipedia', tags.wikipedia);
+      return rows;
+    }
+
+    function parseOsmElements(elements) {
+      const places = [];
+      const seen = new Set();
+      for (const el of elements || []) {
+        const tags = el.tags || {};
+        const type = classifyOsmElement(tags);
+        if (!type) continue;
+        const lat = el.lat ?? el.center?.lat;
+        const lng = el.lon ?? el.center?.lon;
+        if (lat == null || lng == null) continue;
+        const key = `${type}:${lng.toFixed(5)},${lat.toFixed(5)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const { name, hasCustomName } = extractPlaceName(tags, type);
+        places.push({
+          id: `${type}-${el.id}`,
+          type,
+          emoji: PLACE_EMOJI[type],
+          name,
+          hasCustomName,
+          categoryLabel: CATEGORY_LABEL[type],
+          lng,
+          lat,
+          info: buildPlaceInfo(tags, type),
+          osmId: el.id,
+        });
+      }
+      return places;
+    }
+
+    function getMapCenter() {
+      const c = map.getCenter();
+      return { lat: c.lat, lng: c.lng };
+    }
+
+    function distanceKm(from, to) {
+      const r = 6371;
+      const dLat = (to.lat - from.lat) * Math.PI / 180;
+      const dLng = (to.lng - from.lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(from.lat * Math.PI / 180) * Math.cos(to.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function formatDistance(km) {
+      if (km < 1) return `${Math.round(km * 1000)} m`;
+      return `${km.toFixed(1).replace('.', ',')} km`;
+    }
+
+    function normalizeSearch(text) {
+      return text.trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+    }
+
+    function resolveSearchCategory(query) {
+      const q = normalizeSearch(query);
+      if (!q) return null;
+      for (const [id, aliases] of Object.entries(CATEGORY_SEARCH_ALIASES)) {
+        if (aliases.some(a => q === a || q.includes(a) || a.includes(q))) return id;
+      }
+      return null;
+    }
+
+    function matchesSearch(place, query) {
+      const q = normalizeSearch(query);
+      if (!q) return true;
+      if (CATEGORY_SEARCH_ALIASES[place.type]?.some(a => q === a || q.includes(a) || a.includes(q))) {
+        return true;
+      }
+      const haystack = normalizeSearch(`${place.name} ${place.categoryLabel}`);
+      return haystack.includes(q);
+    }
+
+    function getVisiblePlaces() {
+      const center = getMapCenter();
+      const q = placeSearchQuery.trim();
+      const categoryFromSearch = q ? resolveSearchCategory(q) : null;
+      const filterType = activeFilter || categoryFromSearch;
+
+      if (!filterType && !q) return [];
+
+      let pool = filterType
+        ? muskyPlaces.filter(p => p.type === filterType)
+        : muskyPlaces;
+
+      if (q) pool = pool.filter(p => matchesSearch(p, q));
+
+      return pool
+        .map(p => ({ ...p, distanceKm: distanceKm(center, p) }))
+        .sort((a, b) => a.distanceKm - b.distanceKm);
+    }
+
+    function hasActivePlaceView() {
+      return Boolean(activeFilter || placeSearchQuery.trim());
+    }
+
+    async function loadMuskyPlacesFromOsm() {
+      if (window.OSM_PLACES_DATA?.elements?.length) {
+        const places = parseOsmElements(window.OSM_PLACES_DATA.elements);
+        if (places.length) return places;
+      }
+
+      try {
+        const resp = await fetch('osm-places-bcn.json');
+        if (resp.ok) {
+          const data = await resp.json();
+          const places = parseOsmElements(data.elements);
+          if (places.length) return places;
+        }
+      } catch (_) { /* file:// o sin servidor local */ }
+
+      try {
+        const resp = await fetch(OVERPASS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ data: OVERPASS_QUERY }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const places = parseOsmElements(data.elements);
+          if (places.length) return places;
+        }
+      } catch (_) { /* sin red */ }
+
+      return parseOsmElements(FALLBACK_OSM_ELEMENTS);
+    }
+
+    function hideOsmPoiLayers() {
+      OSM_POI_LAYERS.forEach(id => {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+      });
+    }
+
+    function renderLegend() {
+      const items = [
+        ['Vías', COLORS.vias, 'bnw/500'],
+        ['Fondo', COLORS.fondo, 'bnw/200'],
+        ['Áreas verdes', COLORS.areasVerdes, '#B6F1E0'],
+        ['Zonas beige', COLORS.zonasBeige, '#DDEF9E'],
+        ['Edificios', COLORS.edificios, 'yellow/100 · ≥~100 m'],
+        ['Mar', COLORS.mar, 'systemInfo/100'],
+      ].map(([label, color, token]) => `
+        <div class="legend-item"><span class="swatch" style="background:${color}"></span>${label} · ${token}</div>
+      `).join('');
+
+      document.getElementById('legend').innerHTML = `
+        <div class="legend-toggle">
+          <span>Aceras (sidewalk / crossing)</span>
+          <button type="button" class="${showSidewalks ? 'on' : ''}" id="toggle-sidewalks">
+            ${showSidewalks ? 'Visibles' : 'Ocultas'}
+          </button>
+        </div>
+        <div class="legend-toggle">
+          <span>Bordes de vía (casings)</span>
+          <button type="button" class="${showRoadCasings ? 'on' : ''}" id="toggle-casings">
+            ${showRoadCasings ? 'Visibles' : 'Ocultos'}
+          </button>
+        </div>
+        ${items}`;
+      document.getElementById('toggle-sidewalks').onclick = toggleSidewalks;
+      document.getElementById('toggle-casings').onclick = toggleRoadCasings;
+
+      const legend = document.getElementById('legend');
+      legend.classList.toggle('hidden', hasActivePlaceView());
+    }
+
+    function updatePlacesPanel() {
+      const drawer = document.getElementById('places-drawer');
+      const listPanel = document.getElementById('places-list-panel');
+      const detailPanel = document.getElementById('places-detail-panel');
+      const showListBtn = document.getElementById('show-list-btn');
+
+      drawer.classList.remove('open-list', 'open-detail', 'collapsed', 'empty');
+
+      if (!hasActivePlaceView()) {
+        drawer.classList.add('collapsed', 'empty');
+        listPanel.classList.remove('places-panel-hidden');
+        detailPanel.classList.add('places-panel-hidden');
+        showListBtn.classList.add('hidden');
+        return;
+      }
+
+      if (placeDetailOpen) {
+        drawer.classList.add('open-detail');
+        listPanel.classList.add('places-panel-hidden');
+        detailPanel.classList.remove('places-panel-hidden');
+        showListBtn.classList.add('hidden');
+      } else if (placesDrawerOpen) {
+        drawer.classList.add('open-list');
+        listPanel.classList.remove('places-panel-hidden');
+        detailPanel.classList.add('places-panel-hidden');
+        showListBtn.classList.add('hidden');
+      } else {
+        drawer.classList.add('collapsed');
+        listPanel.classList.remove('places-panel-hidden');
+        detailPanel.classList.add('places-panel-hidden');
+        showListBtn.classList.remove('hidden');
+      }
+    }
+
+    function openPlacesList() {
+      placeDetailOpen = false;
+      placesDrawerOpen = true;
+      updatePlacesPanel();
+      scheduleUrlSync();
+    }
+
+    function setupSearch() {
+      const input = document.getElementById('places-search');
+      input.addEventListener('input', () => {
+        placeSearchQuery = input.value;
+        const cat = resolveSearchCategory(placeSearchQuery);
+        if (cat) {
+          activeFilter = cat;
+          placeDetailOpen = false;
+          placesDrawerOpen = true;
+        }
+        renderLegend();
+        renderChips();
+        renderMarkers();
+        renderPlacesList();
+        scheduleUrlSync();
+      });
+    }
+
+    function renderChips() {
+      const scroll = document.querySelector('.chips-scroll');
+      if (placesLoading) {
+        scroll.innerHTML = '<div class="chips-loading">Cargando lugares…</div>';
+        return;
+      }
+
+      scroll.innerHTML = `<div class="chips-track" id="chips"></div>`;
+      const el = document.getElementById('chips');
+      el.innerHTML = chips.map(c => `
+        <button class="chip ${activeFilter === c.id ? 'active' : ''}" data-id="${c.id}">${c.label}</button>
+      `).join('');
+      el.querySelectorAll('.chip').forEach(btn => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          activeFilter = activeFilter === id ? null : id;
+          selectedPlaceId = null;
+          placeSearchQuery = '';
+          const searchEl = document.getElementById('places-search');
+          if (searchEl) searchEl.value = '';
+          closePlaceDetail();
+          placeDetailOpen = false;
+          placesDrawerOpen = Boolean(activeFilter);
+          renderLegend();
+          renderChips();
+          renderMarkers();
+          renderPlacesList();
+          scheduleUrlSync();
+        };
+      });
+    }
+
+    function setupPlacesDrawer() {
+      const drawer = document.getElementById('places-drawer');
+      const handle = document.getElementById('places-drawer-handle');
+      const header = drawer.querySelector('.places-drawer-header');
+
+      const collapseList = () => {
+        if (!hasActivePlaceView() || placeDetailOpen) return;
+        placesDrawerOpen = false;
+        updatePlacesPanel();
+      };
+
+      handle.onclick = () => {
+        if (placeDetailOpen) {
+          closePlaceDetail();
+          return;
+        }
+        if (placesDrawerOpen) collapseList();
+        else openPlacesList();
+      };
+      header.onclick = () => {
+        if (!placeDetailOpen && !placesDrawerOpen) openPlacesList();
+      };
+
+      document.getElementById('show-list-btn').onclick = openPlacesList;
+    }
+
+    function renderPlacesList() {
+      const drawer = document.getElementById('places-drawer');
+      const hint = document.getElementById('places-drawer-hint');
+      const list = document.getElementById('places-list');
+      const countEl = document.getElementById('places-count');
+      const titleEl = document.getElementById('places-drawer-title');
+
+      if (placesLoading) return;
+
+      const chip = chips.find(c => c.id === activeFilter);
+      const visible = getVisiblePlaces();
+      const showingSearch = Boolean(placeSearchQuery.trim());
+
+      if (!hasActivePlaceView()) {
+        titleEl.textContent = 'Lugares';
+        countEl.textContent = '';
+        hint.style.display = 'block';
+        hint.textContent = 'Elige una categoría o busca (ej. pipicans)';
+        list.innerHTML = '';
+        updatePlacesPanel();
+        return;
+      }
+
+      if (showingSearch && chip) {
+        titleEl.textContent = chip.label.trim();
+      } else if (showingSearch) {
+        titleEl.textContent = `Resultados «${placeSearchQuery.trim()}»`;
+      } else {
+        titleEl.textContent = chip ? chip.label.trim() : 'Lugares';
+      }
+      countEl.textContent = String(visible.length);
+      hint.style.display = 'none';
+
+      list.innerHTML = visible.map(place => `
+        <li>
+          <button type="button" class="places-list-item ${selectedPlaceId === place.id ? 'active' : ''}" data-id="${place.id}">
+            <span class="places-list-body">
+              <span class="places-list-name">${escapeHtml(place.name)}</span>
+              <span class="places-list-meta">${formatDistance(place.distanceKm)}</span>
+            </span>
+          </button>
+        </li>
+      `).join('');
+
+      list.querySelectorAll('.places-list-item').forEach(btn => {
+        btn.onclick = () => {
+          const place = visible.find(p => p.id === btn.dataset.id);
+          if (place) selectPlace(place, { fromList: true });
+        };
+      });
+
+      updatePlacesPanel();
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function selectPlace(place, options = {}) {
+      selectedPlaceId = place.id;
+      placeDetailOpen = true;
+      placesDrawerOpen = false;
+      map.flyTo({ center: [place.lng, place.lat], zoom: Math.max(map.getZoom(), 15), duration: 700 });
+      renderMarkers();
+      renderPlaceDetail(place);
+      renderPlacesList();
+      scheduleUrlSync();
+    }
+
+    function renderPlaceDetail(place) {
+      const panel = document.getElementById('places-detail-panel');
+      const center = getMapCenter();
+      const dist = formatDistance(distanceKm(center, place));
+
+      const infoRows = [
+        { label: 'Categoría', value: place.categoryLabel },
+        { label: 'Distancia', value: dist },
+        { label: 'Coordenadas', value: `${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}` },
+        ...place.info,
+      ];
+
+      const infoHtml = infoRows.length
+        ? infoRows.map(row => `
+            <div class="place-info-row">
+              <div class="place-info-label">${escapeHtml(row.label)}</div>
+              <div class="place-info-value">${formatInfoValue(row.label, row.value)}</div>
+            </div>
+          `).join('')
+        : '<p class="place-modal-empty">Sin información adicional en OpenStreetMap.</p>';
+
+      panel.innerHTML = `
+        <div class="place-detail" role="dialog" aria-modal="true">
+          <div class="place-modal-top">
+            <div class="place-modal-emoji">${place.emoji}</div>
+            <div class="place-modal-head">
+              <h2 class="place-modal-name">${escapeHtml(place.name)}</h2>
+              <p class="place-modal-category">${escapeHtml(place.categoryLabel)}</p>
+            </div>
+            <button type="button" class="place-modal-close" aria-label="Cerrar">×</button>
+          </div>
+          <div class="place-modal-info">${infoHtml}</div>
+          <div class="place-modal-actions">
+            <button type="button" class="place-modal-btn primary" id="place-modal-route">Cómo llegar</button>
+            <button type="button" class="place-modal-btn secondary" id="place-modal-close-btn">Cerrar</button>
+          </div>
+        </div>`;
+
+      panel.querySelector('.place-modal-close').onclick = closePlaceDetail;
+      panel.querySelector('#place-modal-close-btn').onclick = closePlaceDetail;
+      panel.querySelector('#place-modal-route').onclick = () => {
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`, '_blank');
+      };
+
+      updatePlacesPanel();
+    }
+
+    function formatInfoValue(label, value) {
+      const safe = escapeHtml(value);
+      if (label === 'Web' || label === 'Wikipedia') {
+        const url = value.startsWith('http') ? value : `https://${value}`;
+        return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${safe}</a>`;
+      }
+      return safe;
+    }
+
+    function closePlaceDetail() {
+      placeDetailOpen = false;
+      placesDrawerOpen = false;
+      updatePlacesPanel();
+      scheduleUrlSync();
+    }
+
+    // Pin Figma: blob rosa 34×40 + cápsula blanca 24×23 con emoji
+    const PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="40" viewBox="0 0 34 40" fill="none"><path d="M17 1.5C24.87 1.5 31.5 8.13 31.5 16c0 8.2-12.2 21.5-14.5 21.5S2.5 24.2 2.5 16C2.5 8.13 9.13 1.5 17 1.5z" fill="#F896BF"/></svg>`;
+
+    function pinElement(place, isSelected) {
+      const el = document.createElement('div');
+      el.className = `pin-wrap${isSelected ? ' selected' : ''}`;
+      const labelHtml = place.hasCustomName
+        ? `<div class="pin-label" title="${escapeHtml(place.name)}">${escapeHtml(place.name)}</div>`
+        : '';
+      el.innerHTML = `
+        <div class="pin">
+          ${PIN_SVG.replace('<svg', '<svg class="pin-shape"')}
+          <div class="pin-icon">${place.emoji}</div>
+        </div>
+        ${labelHtml}`;
+      el.onclick = (e) => {
+        e.stopPropagation();
+        selectPlace(place);
+      };
+      return el;
+    }
+
+    function renderMarkers() {
+      markers.forEach(m => m.remove());
+      markers.length = 0;
+      if (placesLoading || !hasActivePlaceView()) return;
+
+      const visible = getVisiblePlaces();
+
+      let index = 0;
+      const batchSize = 80;
+
+      function addBatch() {
+        const end = Math.min(index + batchSize, visible.length);
+        for (; index < end; index++) {
+          const place = visible[index];
+          const marker = new maplibregl.Marker({
+            element: pinElement(place, selectedPlaceId === place.id),
+            anchor: 'bottom-left',
+            offset: [27, -2],
+          })
+            .setLngLat([place.lng, place.lat])
+            .addTo(map);
+          markers.push(marker);
+        }
+        if (index < visible.length) requestAnimationFrame(addBatch);
+      }
+
+      addBatch();
+    }
+
+    initMap();
+  </script>
+</body>
+</html>
