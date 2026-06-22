@@ -519,7 +519,6 @@
   </div>
   <div class="hint">Compartir ⤴ · el enlace guarda categoría, búsqueda y posición del mapa</div>
 
-  <script src="osm-places-bcn.js"></script>
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script>
     const COLORS = {
@@ -533,9 +532,9 @@
       text: '#6C7074',       // bnw/700
     };
 
-    // Edificios visibles ~2 niveles antes que escala 50 m (~zoom 15.75 en Barcelona)
+    // Edificios visibles ~2 niveles antes que escala 50 m (~zoom 15.75)
     const BUILDING_MIN_ZOOM = (() => {
-      const lat = 41.4065;
+      const lat = 40.4;
       const meters = 50;
       const metersPerPixel = meters / 100;
       const z = Math.log2(
@@ -595,17 +594,23 @@
     };
 
     const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-    const OVERPASS_QUERY = `[out:json][timeout:30];
+    const SPAIN_BBOX = { south: 27.5, west: -18.5, north: 43.9, east: 4.6 };
+    const DEFAULT_MAP = { lat: 40.4168, lng: -3.7038, zoom: 6 };
+    const MIN_POI_ZOOM = 10;
+
+    function buildOverpassQuery(south, west, north, east) {
+      return `[out:json][timeout:25];
 (
-  node["leisure"="dog_park"](41.35,2.08,41.44,2.24);
-  way["leisure"="dog_park"](41.35,2.08,41.44,2.24);
-  node["amenity"="drinking_water"](41.35,2.08,41.44,2.24);
-  node["amenity"="veterinary"](41.35,2.08,41.44,2.24);
-  way["leisure"="park"]["name"](41.35,2.08,41.44,2.24);
-  node["leisure"="beach"]["dog"="yes"](41.35,2.08,41.44,2.24);
-  way["leisure"="beach"]["dog"="yes"](41.35,2.08,41.44,2.24);
+  node["leisure"="dog_park"](${south},${west},${north},${east});
+  way["leisure"="dog_park"](${south},${west},${north},${east});
+  node["amenity"="drinking_water"](${south},${west},${north},${east});
+  node["amenity"="veterinary"](${south},${west},${north},${east});
+  way["leisure"="park"]["name"](${south},${west},${north},${east});
+  node["leisure"="beach"]["dog"="yes"](${south},${west},${north},${east});
+  way["leisure"="beach"]["dog"="yes"](${south},${west},${north},${east});
 );
 out center;`;
+    }
 
     const OSM_POI_LAYERS = ['poi_r1', 'poi_r7', 'poi_r20'];
     const VALID_FILTERS = new Set(['park', 'dog', 'vet', 'fountain', 'beach']);
@@ -614,24 +619,22 @@ out center;`;
     let urlSyncSuspended = false;
     let urlSyncTimer = null;
 
-    // Respaldo si Overpass no responde (coords OSM reales, zona Barcelona).
+    // Respaldo mínimo si Overpass no responde (varias ciudades de España).
     const FALLBACK_OSM_ELEMENTS = [
       { id: 1, lat: 41.4065, lon: 2.1478, tags: { leisure: 'park', 'name:es': 'Parc del Putxet i el Farró' } },
-      { id: 2, lat: 41.4033, lon: 2.1442, tags: { leisure: 'park', name: 'Parc de la Guineueta' } },
-      { id: 3, lat: 41.4098, lon: 2.1521, tags: { leisure: 'park', name: 'Jardins de la Tamarita' } },
-      { id: 4, lat: 41.4012, lon: 2.1395, tags: { leisure: 'dog_park', name: 'Pipican Sarrià' } },
-      { id: 5, lat: 41.3865, lon: 2.1369, tags: { leisure: 'dog_park' } },
-      { id: 6, lat: 41.4076, lon: 2.1496, tags: { amenity: 'drinking_water' } },
-      { id: 7, lat: 41.4064, lon: 2.1499, tags: { amenity: 'drinking_water' } },
-      { id: 8, lat: 41.4053, lon: 2.1616, tags: { amenity: 'drinking_water', name: 'Font de la Caputxeta' } },
-      { id: 9, lat: 41.4053, lon: 2.1612, tags: { amenity: 'veterinary', name: 'Centre Veterinari Joanic' } },
-      { id: 10, lat: 41.4027, lon: 2.1596, tags: { amenity: 'veterinary', name: 'Kiwi Mascotas' } },
-      { id: 11, lat: 41.4206, lon: 2.1407, tags: { amenity: 'veterinary', name: 'Consultori Veterinari Amazonas' } },
-      { id: 12, lat: 41.3817, lon: 2.2125, tags: { leisure: 'beach', dog: 'yes', name: 'Platja de Llevant' } },
+      { id: 2, lat: 40.4153, lon: -3.6844, tags: { leisure: 'park', name: 'Parque del Retiro' } },
+      { id: 3, lat: 39.4699, lon: -0.3763, tags: { leisure: 'park', name: 'Jardines del Turia' } },
+      { id: 4, lat: 37.3826, lon: -5.9963, tags: { leisure: 'dog_park', name: 'Parque canino Sevilla' } },
+      { id: 5, lat: 43.2630, lon: -2.9350, tags: { amenity: 'drinking_water', name: 'Fuente Bilbao' } },
+      { id: 6, lat: 28.4682, lon: -16.2546, tags: { leisure: 'beach', dog: 'yes', name: 'Playa canina Tenerife' } },
     ];
 
     let muskyPlaces = [];
-    let placesLoading = true;
+    let placesById = new Map();
+    let fetchedBboxKeys = new Set();
+    let placesFetchTimer = null;
+    let placesFetchRequest = 0;
+    let placesLoading = false;
     let selectedPlaceId = null;
     let placesDrawerOpen = false;
     let placeDetailOpen = false;
@@ -662,10 +665,10 @@ out center;`;
           return next;
         },
         center: [
-          Number.isFinite(initialUrlState.lng) ? initialUrlState.lng : 2.1478,
-          Number.isFinite(initialUrlState.lat) ? initialUrlState.lat : 41.4065,
+          Number.isFinite(initialUrlState.lng) ? initialUrlState.lng : DEFAULT_MAP.lng,
+          Number.isFinite(initialUrlState.lat) ? initialUrlState.lat : DEFAULT_MAP.lat,
         ],
-        zoom: Number.isFinite(initialUrlState.z) ? initialUrlState.z : 14.2,
+        zoom: Number.isFinite(initialUrlState.z) ? initialUrlState.z : DEFAULT_MAP.zoom,
         pitch: 0,
         bearing: 0,
         maxPitch: 0,
@@ -680,6 +683,7 @@ out center;`;
 
       map.on('moveend', () => {
         if (hasActivePlaceView() && !placesLoading) renderPlacesList();
+        schedulePlacesFetch();
         scheduleUrlSync();
       });
 
@@ -694,9 +698,9 @@ out center;`;
         applyPedestrianPathFilters(showSidewalks);
         renderLegend();
         renderChips();
-        muskyPlaces = await loadMuskyPlacesFromOsm();
-        placesLoading = false;
+        await bootstrapPlacesData();
         applyUrlState(initialUrlState);
+        if (hasActivePlaceView()) schedulePlacesFetch(true);
         renderChips();
         renderMarkers();
         renderPlacesList();
@@ -793,7 +797,7 @@ out center;`;
 
       try {
         if (navigator.share) {
-          await navigator.share({ title: 'Mapa Musky', text: 'Mapa Musky · Barcelona', url });
+          await navigator.share({ title: 'Mapa Musky', text: 'Mapa Musky · España', url });
           return;
         }
       } catch (err) {
@@ -1174,6 +1178,9 @@ out center;`;
 
       if (q) pool = pool.filter(p => matchesSearch(p, q));
 
+      const bounds = getViewportBounds(0.05);
+      pool = pool.filter(p => isPlaceInBounds(p, bounds));
+
       return pool
         .map(p => ({ ...p, distanceKm: distanceKm(center, p) }))
         .sort((a, b) => a.distanceKm - b.distanceKm);
@@ -1183,35 +1190,125 @@ out center;`;
       return Boolean(activeFilter || placeSearchQuery.trim());
     }
 
-    async function loadMuskyPlacesFromOsm() {
+    function getViewportBounds(paddingRatio = 0.12) {
+      const b = map.getBounds();
+      const latPad = (b.getNorth() - b.getSouth()) * paddingRatio;
+      const lngPad = (b.getEast() - b.getWest()) * paddingRatio;
+      return {
+        south: Math.max(SPAIN_BBOX.south, b.getSouth() - latPad),
+        north: Math.min(SPAIN_BBOX.north, b.getNorth() + latPad),
+        west: Math.max(SPAIN_BBOX.west, b.getWest() - lngPad),
+        east: Math.min(SPAIN_BBOX.east, b.getEast() + lngPad),
+      };
+    }
+
+    function bboxCacheKey(bounds) {
+      const round = v => Math.round(v * 100) / 100;
+      return `${round(bounds.south)},${round(bounds.west)},${round(bounds.north)},${round(bounds.east)}`;
+    }
+
+    function mergePlaces(places) {
+      for (const place of places) {
+        placesById.set(place.id, place);
+      }
+      muskyPlaces = Array.from(placesById.values());
+    }
+
+    async function fetchOverpassForBounds(bounds) {
+      const query = buildOverpassQuery(bounds.south, bounds.west, bounds.north, bounds.east);
+      const resp = await fetch(OVERPASS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ data: query }),
+      });
+      if (!resp.ok) throw new Error(`Overpass ${resp.status}`);
+      return resp.json();
+    }
+
+    async function bootstrapPlacesData() {
       if (window.OSM_PLACES_DATA?.elements?.length) {
-        const places = parseOsmElements(window.OSM_PLACES_DATA.elements);
-        if (places.length) return places;
+        mergePlaces(parseOsmElements(window.OSM_PLACES_DATA.elements));
+        return;
       }
 
       try {
-        const resp = await fetch('osm-places-bcn.json');
+        const resp = await fetch('osm-places-es.js', { method: 'HEAD' });
         if (resp.ok) {
-          const data = await resp.json();
-          const places = parseOsmElements(data.elements);
-          if (places.length) return places;
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'osm-places-es.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+          if (window.OSM_PLACES_DATA?.elements?.length) {
+            mergePlaces(parseOsmElements(window.OSM_PLACES_DATA.elements));
+            return;
+          }
         }
-      } catch (_) { /* file:// o sin servidor local */ }
+      } catch (_) { /* sin bundle estático */ }
 
       try {
-        const resp = await fetch(OVERPASS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ data: OVERPASS_QUERY }),
-        });
+        const resp = await fetch('osm-places-es.json');
         if (resp.ok) {
           const data = await resp.json();
-          const places = parseOsmElements(data.elements);
-          if (places.length) return places;
+          mergePlaces(parseOsmElements(data.elements));
+          return;
         }
-      } catch (_) { /* sin red */ }
+      } catch (_) { /* file:// o sin servidor local */ }
+    }
 
-      return parseOsmElements(FALLBACK_OSM_ELEMENTS);
+    function schedulePlacesFetch(immediate = false) {
+      if (!map || !hasActivePlaceView()) return;
+      clearTimeout(placesFetchTimer);
+      placesFetchTimer = setTimeout(() => refreshPlacesForViewport(), immediate ? 0 : 450);
+    }
+
+    async function refreshPlacesForViewport() {
+      if (!map || !hasActivePlaceView()) return;
+
+      if (map.getZoom() < MIN_POI_ZOOM) {
+        renderPlacesList();
+        renderMarkers();
+        return;
+      }
+
+      const bounds = getViewportBounds();
+      const key = bboxCacheKey(bounds);
+      if (fetchedBboxKeys.has(key)) {
+        renderPlacesList();
+        renderMarkers();
+        return;
+      }
+
+      const requestId = ++placesFetchRequest;
+      placesLoading = true;
+      renderChips();
+      renderPlacesList();
+
+      try {
+        const data = await fetchOverpassForBounds(bounds);
+        if (requestId !== placesFetchRequest) return;
+        mergePlaces(parseOsmElements(data.elements));
+        fetchedBboxKeys.add(key);
+      } catch (_) {
+        if (requestId !== placesFetchRequest) return;
+        if (!muskyPlaces.length) {
+          mergePlaces(parseOsmElements(FALLBACK_OSM_ELEMENTS));
+        }
+      } finally {
+        if (requestId === placesFetchRequest) {
+          placesLoading = false;
+          renderChips();
+          renderMarkers();
+          renderPlacesList();
+        }
+      }
+    }
+
+    function isPlaceInBounds(place, bounds) {
+      return place.lat >= bounds.south && place.lat <= bounds.north
+        && place.lng >= bounds.west && place.lng <= bounds.east;
     }
 
     function hideOsmPoiLayers() {
@@ -1306,6 +1403,7 @@ out center;`;
         }
         renderLegend();
         renderChips();
+        schedulePlacesFetch(true);
         renderMarkers();
         renderPlacesList();
         scheduleUrlSync();
@@ -1315,7 +1413,7 @@ out center;`;
     function renderChips() {
       const scroll = document.querySelector('.chips-scroll');
       if (placesLoading) {
-        scroll.innerHTML = '<div class="chips-loading">Cargando lugares…</div>';
+        scroll.innerHTML = '<div class="chips-loading">Cargando lugares en esta zona…</div>';
         return;
       }
 
@@ -1337,6 +1435,7 @@ out center;`;
           placesDrawerOpen = Boolean(activeFilter);
           renderLegend();
           renderChips();
+          schedulePlacesFetch(true);
           renderMarkers();
           renderPlacesList();
           scheduleUrlSync();
@@ -1380,6 +1479,18 @@ out center;`;
       if (placesLoading) return;
 
       const chip = chips.find(c => c.id === activeFilter);
+      const zoomTooLow = map && map.getZoom() < MIN_POI_ZOOM;
+
+      if (zoomTooLow && hasActivePlaceView()) {
+        titleEl.textContent = chip ? chip.label.trim() : 'Lugares';
+        countEl.textContent = '';
+        hint.style.display = 'block';
+        hint.textContent = 'Acércate al mapa para cargar lugares en esta zona';
+        list.innerHTML = '';
+        updatePlacesPanel();
+        return;
+      }
+
       const visible = getVisiblePlaces();
       const showingSearch = Boolean(placeSearchQuery.trim());
 
