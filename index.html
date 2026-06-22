@@ -163,13 +163,11 @@
     .swatch { width: 14px; height: 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.06); flex-shrink: 0; }
 
     .pin-wrap {
+      position: relative;
+      width: 54px;
+      height: 60px;
       cursor: pointer;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 6px;
-      width: max-content;
-      max-width: 200px;
+      overflow: visible;
     }
     .pin-wrap.selected .pin-label {
       background: var(--pink-200);
@@ -204,8 +202,11 @@
       line-height: 1;
     }
     .pin-label {
-      flex-shrink: 1;
-      min-width: 0;
+      position: absolute;
+      left: calc(100% + 6px);
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 1;
       padding: 4px 8px;
       max-width: 132px;
       background: rgba(255,255,255,.96);
@@ -218,6 +219,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      pointer-events: none;
     }
 
     .places-drawer {
@@ -457,6 +459,7 @@
     .maplibregl-marker {
       width: auto !important;
       height: auto !important;
+      overflow: visible !important;
     }
     .maplibregl-marker > * {
       width: auto;
@@ -1656,7 +1659,7 @@ out center;`;
           const marker = new maplibregl.Marker({
             element: pinElement(place, selectedPlaceId === place.id),
             anchor: 'bottom-left',
-            offset: [27, -2],
+            offset: [27, 0],
           })
             .setLngLat([place.lng, place.lat])
             .addTo(map);
