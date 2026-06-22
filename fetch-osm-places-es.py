@@ -42,11 +42,16 @@ def tiles():
 
 
 def fetch_tile(s: float, w: float, n: float, e: float) -> list[dict]:
-    data = QUERY.format(s=s, w=w, n=n, e=e).encode()
+    query = QUERY.format(s=s, w=w, n=n, e=e)
+    body = urllib.parse.urlencode({"data": query}).encode()
     req = urllib.request.Request(
         OVERPASS_URL,
-        data=urllib.parse.urlencode({"data": data.decode()}).encode(),
+        data=body,
         method="POST",
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "MuskyMapPoC/1.0 (contact@musky.app)",
+        },
     )
     with urllib.request.urlopen(req, timeout=120) as resp:
         payload = json.load(resp)

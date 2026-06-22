@@ -63,6 +63,40 @@
     .search-bar {
       padding: 10px 16px 0;
     }
+    .search-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .search-row .search-input {
+      flex: 1;
+      min-width: 0;
+    }
+    .locate-btn {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      border-radius: 999px;
+      border: 1px solid var(--bnw-300);
+      background: var(--bnw-100);
+      box-shadow: 0 2px 8px rgba(30,31,31,.06);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      color: var(--bnw-700);
+      font-size: 18px;
+      line-height: 1;
+    }
+    .locate-btn:hover { border-color: var(--pink-600); }
+    .locate-btn.active {
+      background: var(--pink-200);
+      border-color: var(--pink-600);
+      color: var(--bnw-900);
+    }
+    .locate-btn.loading {
+      opacity: 0.65;
+      pointer-events: none;
+    }
     .search-input {
       width: 100%;
       height: 40px;
@@ -119,55 +153,13 @@
       color: var(--bnw-700);
     }
 
-    .legend {
-      position: absolute; left: 16px; bottom: 16px; right: 16px;
-      background: rgba(255,255,255,.94); border: 1px solid var(--bnw-300);
-      border-radius: 16px; padding: 10px 12px;
-      display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px;
-      font: 400 11px/16px "Krub", sans-serif;
-      color: var(--bnw-700);
-      backdrop-filter: blur(8px);
-      transition: opacity .2s, transform .2s;
-    }
-    .legend.hidden {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(8px);
-    }
-    .legend-item { display: flex; align-items: center; gap: 6px; }
-    .legend-toggle {
-      grid-column: 1 / -1;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding-bottom: 4px;
-      border-bottom: 1px solid var(--bnw-300);
-      margin-bottom: 2px;
-    }
-    .legend-toggle span { font-size: 11px; color: var(--bnw-800); }
-    .legend-toggle button {
-      height: 28px;
-      padding: 0 10px;
-      border-radius: 14px;
-      border: 1px solid var(--bnw-300);
-      background: var(--bnw-100);
-      color: var(--bnw-700);
-      font: 600 11px/16px "Krub", sans-serif;
-      cursor: pointer;
-    }
-    .legend-toggle button.on {
-      background: var(--pink-200);
-      border-color: var(--pink-600);
-    }
-    .swatch { width: 14px; height: 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.06); flex-shrink: 0; }
-
     .pin-wrap {
-      position: relative;
-      width: 54px;
-      height: 60px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 2px;
+      width: max-content;
       cursor: pointer;
-      overflow: visible;
     }
     .pin-wrap.selected .pin-label {
       background: var(--pink-200);
@@ -202,11 +194,7 @@
       line-height: 1;
     }
     .pin-label {
-      position: absolute;
-      left: calc(100% + 6px);
-      top: 50%;
-      transform: translateY(-50%);
-      z-index: 1;
+      flex-shrink: 0;
       padding: 4px 8px;
       max-width: 132px;
       background: rgba(255,255,255,.96);
@@ -236,30 +224,65 @@
       display: flex;
       flex-direction: column;
       transform: translateY(100%);
-      transition: transform .28s ease;
+      transition: transform .28s ease, max-height .28s ease, height .28s ease;
     }
     .places-drawer.open-list,
     .places-drawer.open-detail { transform: translateY(0); }
+    .places-drawer.open-list-full {
+      transform: translateY(0);
+      max-height: calc(100% - 132px);
+      height: calc(100% - 132px);
+    }
+    .places-drawer.collapsed { pointer-events: none; }
     .places-drawer.empty { pointer-events: none; }
+    .places-drawer.dragging {
+      transition: none;
+    }
 
     .places-panel-hidden { display: none !important; }
 
     .places-drawer-handle {
+      flex-shrink: 0;
+      padding: 10px 0 6px;
+      cursor: grab;
+      touch-action: none;
+    }
+    .places-drawer-handle::after {
+      content: '';
+      display: block;
       width: 40px;
       height: 4px;
       border-radius: 999px;
       background: var(--bnw-500);
-      margin: 8px auto 0;
-      flex-shrink: 0;
+      margin: 0 auto;
     }
     .places-drawer-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      padding: 10px 16px 8px;
+      padding: 4px 16px 8px;
+      flex-shrink: 0;
+      touch-action: none;
+    }
+    .places-drawer-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       flex-shrink: 0;
     }
+    .show-map-btn {
+      height: 32px;
+      padding: 0 14px;
+      border: 1px solid var(--bnw-300);
+      border-radius: 16px;
+      background: var(--bnw-100);
+      box-shadow: 0 2px 8px rgba(30,31,31,.08);
+      font: 600 13px/20px "Krub", sans-serif;
+      color: var(--bnw-800);
+      cursor: pointer;
+    }
+    .show-map-btn.hidden { display: none; }
     .places-drawer-title {
       font: 600 16px/24px "Krub", sans-serif;
       color: var(--bnw-900);
@@ -466,6 +489,41 @@
       height: auto;
     }
 
+    .user-location-marker {
+      width: 24px;
+      height: 24px;
+      position: relative;
+      pointer-events: none;
+    }
+    .user-location-dot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 14px;
+      height: 14px;
+      margin: -7px 0 0 -7px;
+      background: #4285f4;
+      border: 3px solid var(--bnw-100);
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(30,31,31,.25);
+      z-index: 2;
+    }
+    .user-location-pulse {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 24px;
+      height: 24px;
+      margin: -12px 0 0 -12px;
+      background: rgba(66,133,244,.28);
+      border-radius: 50%;
+      animation: user-pulse 2s ease-out infinite;
+    }
+    @keyframes user-pulse {
+      0% { transform: scale(0.55); opacity: 1; }
+      100% { transform: scale(1.85); opacity: 0; }
+    }
+
     .maplibregl-ctrl-attrib,
     .maplibregl-ctrl-attrib a,
     .maplibregl-popup-content {
@@ -492,26 +550,37 @@
         </div>
         <div class="share-toast" id="share-toast" role="status"></div>
         <div class="search-bar">
-          <input
-            type="search"
-            id="places-search"
-            class="search-input"
-            placeholder="Buscar… pipicans, parques, fuentes"
-            autocomplete="off"
-          />
+          <div class="search-row">
+            <input
+              type="search"
+              id="places-search"
+              class="search-input"
+              placeholder="Buscar… pipicans, parques, fuentes"
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              class="locate-btn"
+              id="locate-btn"
+              aria-label="Usar mi ubicación"
+              title="Buscar lugares cerca de mí"
+            >◎</button>
+          </div>
         </div>
         <div class="chips-scroll">
           <div class="chips-track" id="chips"></div>
         </div>
       </div>
-      <div class="legend" id="legend"></div>
       <button type="button" class="show-list-btn hidden" id="show-list-btn">Ver lista</button>
       <div class="places-drawer collapsed empty" id="places-drawer">
         <div class="places-drawer-handle" id="places-drawer-handle"></div>
         <div id="places-list-panel">
           <div class="places-drawer-header">
             <span class="places-drawer-title" id="places-drawer-title">Lugares</span>
-            <span class="places-drawer-count" id="places-count"></span>
+            <div class="places-drawer-actions">
+              <button type="button" class="show-map-btn hidden" id="show-map-btn">Ver mapa</button>
+              <span class="places-drawer-count" id="places-count"></span>
+            </div>
           </div>
           <p class="places-drawer-hint" id="places-drawer-hint">Elige una categoría para ver la lista</p>
           <ul class="places-list" id="places-list"></ul>
@@ -522,6 +591,7 @@
   </div>
   <div class="hint">Compartir ⤴ · el enlace guarda categoría, búsqueda y posición del mapa</div>
 
+  <script src="osm-places-bcn.js"></script>
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script>
     const COLORS = {
@@ -600,6 +670,7 @@
     const SPAIN_BBOX = { south: 27.5, west: -18.5, north: 43.9, east: 4.6 };
     const DEFAULT_MAP = { lat: 40.4168, lng: -3.7038, zoom: 6 };
     const MIN_POI_ZOOM = 10;
+    const USER_RADIUS_KM = 25;
 
     function buildOverpassQuery(south, west, north, east) {
       return `[out:json][timeout:25];
@@ -608,7 +679,8 @@
   way["leisure"="dog_park"](${south},${west},${north},${east});
   node["amenity"="drinking_water"](${south},${west},${north},${east});
   node["amenity"="veterinary"](${south},${west},${north},${east});
-  way["leisure"="park"]["name"](${south},${west},${north},${east});
+  node["leisure"="park"](${south},${west},${north},${east});
+  way["leisure"="park"](${south},${west},${north},${east});
   node["leisure"="beach"]["dog"="yes"](${south},${west},${north},${east});
   way["leisure"="beach"]["dog"="yes"](${south},${west},${north},${east});
 );
@@ -641,13 +713,14 @@ out center;`;
     let selectedPlaceId = null;
     let placesDrawerOpen = false;
     let placeDetailOpen = false;
+    let drawerFullScreen = false;
     let placeSearchQuery = '';
 
     let activeFilter = null;
-    let showRoadCasings = false;
-    let showSidewalks = false;
     const markers = [];
     let map;
+    let userLocation = null;
+    let userLocationMarker = null;
 
     async function loadKrubFonts() {
       await Promise.all([
@@ -690,16 +763,20 @@ out center;`;
         scheduleUrlSync();
       });
 
+      map.on('click', () => {
+        if (!hasActivePlaceView()) return;
+        if (placesDrawerOpen || placeDetailOpen) collapseDrawer();
+      });
+
       map.on('load', async () => {
         applyMuskyColors();
         applySpanishLabels();
         applyMapTypography();
         applyTransitFilters();
         hideOsmPoiLayers();
-        applyRoadCasingsVisibility(showRoadCasings);
+        applyRoadCasingsVisibility(false);
         applyExtraNoiseVisibility(false);
-        applyPedestrianPathFilters(showSidewalks);
-        renderLegend();
+        applyPedestrianPathFilters(false);
         renderChips();
         await bootstrapPlacesData();
         applyUrlState(initialUrlState);
@@ -710,6 +787,7 @@ out center;`;
         setupPlacesDrawer();
         setupSearch();
         setupShare();
+        setupLocate();
         scheduleUrlSync();
       });
     }
@@ -724,7 +802,9 @@ out center;`;
         lng: parseFloat(p.get('lng')),
         z: parseFloat(p.get('z')),
         place: p.get('place') || null,
-        view: view === 'list' || view === 'detail' || view === 'map' ? view : null,
+        view: view === 'list' || view === 'detail' || view === 'map' || view === 'list-full' ? view : null,
+        ulat: parseFloat(p.get('ulat')),
+        ulng: parseFloat(p.get('ulng')),
       };
     }
 
@@ -738,7 +818,12 @@ out center;`;
       p.set('lng', c.lng.toFixed(5));
       p.set('z', map.getZoom().toFixed(2));
       if (selectedPlaceId) p.set('place', selectedPlaceId);
+      if (userLocation) {
+        p.set('ulat', userLocation.lat.toFixed(5));
+        p.set('ulng', userLocation.lng.toFixed(5));
+      }
       if (placeDetailOpen) p.set('view', 'detail');
+      else if (placesDrawerOpen && drawerFullScreen) p.set('view', 'list-full');
       else if (placesDrawerOpen) p.set('view', 'list');
       else if (hasActivePlaceView()) p.set('view', 'map');
       const qs = p.toString();
@@ -765,8 +850,10 @@ out center;`;
 
       placeDetailOpen = false;
       placesDrawerOpen = false;
+      drawerFullScreen = false;
 
-      if (state.view === 'list') placesDrawerOpen = true;
+      if (state.view === 'list' || state.view === 'list-full') placesDrawerOpen = true;
+      if (state.view === 'list-full') drawerFullScreen = true;
       if (state.place) {
         const place = muskyPlaces.find(item => item.id === state.place);
         if (place) {
@@ -776,6 +863,10 @@ out center;`;
             renderPlaceDetail(place);
           }
         }
+      }
+
+      if (Number.isFinite(state.ulat) && Number.isFinite(state.ulng)) {
+        setUserLocation(state.ulat, state.ulng, false);
       }
 
       urlSyncSuspended = false;
@@ -817,6 +908,84 @@ out center;`;
 
     function setupShare() {
       document.getElementById('share-btn').onclick = shareMapLink;
+    }
+
+    function updateLocateButton() {
+      const btn = document.getElementById('locate-btn');
+      if (!btn) return;
+      btn.classList.toggle('active', Boolean(userLocation));
+      btn.classList.remove('loading');
+    }
+
+    function renderUserLocationMarker() {
+      if (userLocationMarker) {
+        userLocationMarker.remove();
+        userLocationMarker = null;
+      }
+      if (!map || !userLocation) return;
+
+      const el = document.createElement('div');
+      el.className = 'user-location-marker';
+      el.innerHTML = '<span class="user-location-pulse"></span><span class="user-location-dot"></span>';
+      userLocationMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([userLocation.lng, userLocation.lat])
+        .addTo(map);
+    }
+
+    function setUserLocation(lat, lng, fly = true) {
+      userLocation = { lat, lng };
+      updateLocateButton();
+      renderUserLocationMarker();
+
+      if (fly && map) {
+        map.flyTo({
+          center: [lng, lat],
+          zoom: Math.max(map.getZoom(), 14.2),
+          duration: 900,
+        });
+      }
+
+      if (hasActivePlaceView()) schedulePlacesFetch(true);
+      renderMarkers();
+      renderPlacesList();
+      if (placeDetailOpen && selectedPlaceId) {
+        const place = muskyPlaces.find(item => item.id === selectedPlaceId);
+        if (place) renderPlaceDetail(place);
+      }
+      scheduleUrlSync();
+    }
+
+    function requestUserLocation() {
+      if (!navigator.geolocation) {
+        showShareToast('Tu navegador no soporta geolocalización');
+        return;
+      }
+
+      const btn = document.getElementById('locate-btn');
+      btn.classList.add('loading');
+      showShareToast('Obteniendo tu ubicación…');
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation(pos.coords.latitude, pos.coords.longitude, true);
+          showShareToast('Mostrando lugares cerca de ti');
+        },
+        (err) => {
+          updateLocateButton();
+          const messages = {
+            1: 'Permiso de ubicación denegado',
+            2: 'Ubicación no disponible',
+            3: 'Tiempo agotado al obtener ubicación',
+          };
+          showShareToast(messages[err.code] || 'No se pudo obtener tu ubicación');
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+      );
+    }
+
+    function setupLocate() {
+      document.getElementById('locate-btn').onclick = requestUserLocation;
+      updateLocateButton();
     }
 
     function applyMuskyColors() {
@@ -920,12 +1089,6 @@ out center;`;
       }
     }
 
-    function toggleSidewalks() {
-      showSidewalks = !showSidewalks;
-      applyPedestrianPathFilters(showSidewalks);
-      renderLegend();
-    }
-
     function roadWidthExpr(stops) {
       return ['interpolate', ['exponential', 1.2], ['zoom'], ...stops];
     }
@@ -991,12 +1154,6 @@ out center;`;
         if (!map.getLayer(id)) return;
         map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
       });
-    }
-
-    function toggleRoadCasings() {
-      showRoadCasings = !showRoadCasings;
-      applyRoadCasingsVisibility(showRoadCasings);
-      renderLegend();
     }
 
     // Etiquetas del mapa en castellano (prioriza name:es de OSM).
@@ -1130,6 +1287,10 @@ out center;`;
       return { lat: c.lat, lng: c.lng };
     }
 
+    function getDistanceOrigin() {
+      return userLocation || getMapCenter();
+    }
+
     function distanceKm(from, to) {
       const r = 6371;
       const dLat = (to.lat - from.lat) * Math.PI / 180;
@@ -1168,7 +1329,7 @@ out center;`;
     }
 
     function getVisiblePlaces() {
-      const center = getMapCenter();
+      const origin = getDistanceOrigin();
       const q = placeSearchQuery.trim();
       const categoryFromSearch = q ? resolveSearchCategory(q) : null;
       const filterType = activeFilter || categoryFromSearch;
@@ -1181,11 +1342,14 @@ out center;`;
 
       if (q) pool = pool.filter(p => matchesSearch(p, q));
 
-      const bounds = getViewportBounds(0.05);
+      if (userLocation) {
+        pool = pool.filter(p => distanceKm(userLocation, p) <= USER_RADIUS_KM);
+      }
+      const bounds = getViewportBounds(0.2);
       pool = pool.filter(p => isPlaceInBounds(p, bounds));
 
       return pool
-        .map(p => ({ ...p, distanceKm: distanceKm(center, p) }))
+        .map(p => ({ ...p, distanceKm: distanceKm(origin, p) }))
         .sort((a, b) => a.distanceKm - b.distanceKm);
     }
 
@@ -1233,6 +1397,14 @@ out center;`;
         mergePlaces(parseOsmElements(window.OSM_PLACES_DATA.elements));
         return;
       }
+
+      try {
+        const resp = await fetch('osm-places-bcn.json');
+        if (resp.ok) {
+          const data = await resp.json();
+          mergePlaces(parseOsmElements(data.elements));
+        }
+      } catch (_) { /* file:// o sin servidor local */ }
 
       try {
         const resp = await fetch('osm-places-es.js', { method: 'HEAD' });
@@ -1286,7 +1458,6 @@ out center;`;
 
       const requestId = ++placesFetchRequest;
       placesLoading = true;
-      renderChips();
       renderPlacesList();
 
       try {
@@ -1302,7 +1473,6 @@ out center;`;
       } finally {
         if (requestId === placesFetchRequest) {
           placesLoading = false;
-          renderChips();
           renderMarkers();
           renderPlacesList();
         }
@@ -1320,37 +1490,20 @@ out center;`;
       });
     }
 
-    function renderLegend() {
-      const items = [
-        ['Vías', COLORS.vias, 'bnw/500'],
-        ['Fondo', COLORS.fondo, 'bnw/200'],
-        ['Áreas verdes', COLORS.areasVerdes, '#B6F1E0'],
-        ['Zonas beige', COLORS.zonasBeige, '#DDEF9E'],
-        ['Edificios', COLORS.edificios, 'yellow/100 · ≥~100 m'],
-        ['Mar', COLORS.mar, 'systemInfo/100'],
-      ].map(([label, color, token]) => `
-        <div class="legend-item"><span class="swatch" style="background:${color}"></span>${label} · ${token}</div>
-      `).join('');
+    function clearDrawerDragStyles() {
+      const drawer = document.getElementById('places-drawer');
+      if (!drawer) return;
+      drawer.classList.remove('dragging');
+      drawer.style.transform = '';
+    }
 
-      document.getElementById('legend').innerHTML = `
-        <div class="legend-toggle">
-          <span>Aceras (sidewalk / crossing)</span>
-          <button type="button" class="${showSidewalks ? 'on' : ''}" id="toggle-sidewalks">
-            ${showSidewalks ? 'Visibles' : 'Ocultas'}
-          </button>
-        </div>
-        <div class="legend-toggle">
-          <span>Bordes de vía (casings)</span>
-          <button type="button" class="${showRoadCasings ? 'on' : ''}" id="toggle-casings">
-            ${showRoadCasings ? 'Visibles' : 'Ocultos'}
-          </button>
-        </div>
-        ${items}`;
-      document.getElementById('toggle-sidewalks').onclick = toggleSidewalks;
-      document.getElementById('toggle-casings').onclick = toggleRoadCasings;
-
-      const legend = document.getElementById('legend');
-      legend.classList.toggle('hidden', hasActivePlaceView());
+    function collapseDrawer() {
+      placeDetailOpen = false;
+      placesDrawerOpen = false;
+      drawerFullScreen = false;
+      clearDrawerDragStyles();
+      updatePlacesPanel();
+      scheduleUrlSync();
     }
 
     function updatePlacesPanel() {
@@ -1358,14 +1511,17 @@ out center;`;
       const listPanel = document.getElementById('places-list-panel');
       const detailPanel = document.getElementById('places-detail-panel');
       const showListBtn = document.getElementById('show-list-btn');
+      const showMapBtn = document.getElementById('show-map-btn');
 
-      drawer.classList.remove('open-list', 'open-detail', 'collapsed', 'empty');
+      drawer.classList.remove('open-list', 'open-list-full', 'open-detail', 'collapsed', 'empty');
+      clearDrawerDragStyles();
 
       if (!hasActivePlaceView()) {
         drawer.classList.add('collapsed', 'empty');
         listPanel.classList.remove('places-panel-hidden');
         detailPanel.classList.add('places-panel-hidden');
         showListBtn.classList.add('hidden');
+        showMapBtn.classList.add('hidden');
         return;
       }
 
@@ -1374,22 +1530,33 @@ out center;`;
         listPanel.classList.add('places-panel-hidden');
         detailPanel.classList.remove('places-panel-hidden');
         showListBtn.classList.add('hidden');
+        showMapBtn.classList.add('hidden');
+      } else if (placesDrawerOpen && drawerFullScreen) {
+        drawer.classList.add('open-list-full');
+        listPanel.classList.remove('places-panel-hidden');
+        detailPanel.classList.add('places-panel-hidden');
+        showListBtn.classList.add('hidden');
+        showMapBtn.classList.remove('hidden');
       } else if (placesDrawerOpen) {
         drawer.classList.add('open-list');
         listPanel.classList.remove('places-panel-hidden');
         detailPanel.classList.add('places-panel-hidden');
         showListBtn.classList.add('hidden');
+        showMapBtn.classList.add('hidden');
       } else {
         drawer.classList.add('collapsed');
         listPanel.classList.remove('places-panel-hidden');
         detailPanel.classList.add('places-panel-hidden');
         showListBtn.classList.remove('hidden');
+        showMapBtn.classList.add('hidden');
       }
     }
 
-    function openPlacesList() {
+    function openPlacesList(full = false) {
       placeDetailOpen = false;
       placesDrawerOpen = true;
+      drawerFullScreen = Boolean(full);
+      clearDrawerDragStyles();
       updatePlacesPanel();
       scheduleUrlSync();
     }
@@ -1403,8 +1570,8 @@ out center;`;
           activeFilter = cat;
           placeDetailOpen = false;
           placesDrawerOpen = true;
+          drawerFullScreen = false;
         }
-        renderLegend();
         renderChips();
         schedulePlacesFetch(true);
         renderMarkers();
@@ -1415,11 +1582,6 @@ out center;`;
 
     function renderChips() {
       const scroll = document.querySelector('.chips-scroll');
-      if (placesLoading) {
-        scroll.innerHTML = '<div class="chips-loading">Cargando lugares en esta zona…</div>';
-        return;
-      }
-
       scroll.innerHTML = `<div class="chips-track" id="chips"></div>`;
       const el = document.getElementById('chips');
       el.innerHTML = chips.map(c => `
@@ -1436,7 +1598,7 @@ out center;`;
           closePlaceDetail();
           placeDetailOpen = false;
           placesDrawerOpen = Boolean(activeFilter);
-          renderLegend();
+          drawerFullScreen = false;
           renderChips();
           schedulePlacesFetch(true);
           renderMarkers();
@@ -1449,27 +1611,99 @@ out center;`;
     function setupPlacesDrawer() {
       const drawer = document.getElementById('places-drawer');
       const handle = document.getElementById('places-drawer-handle');
-      const header = drawer.querySelector('.places-drawer-header');
+      const list = document.getElementById('places-list');
+      const DRAG_THRESHOLD = 72;
+      let dragStartY = 0;
+      let dragDelta = 0;
+      let dragging = false;
+      let dragActive = false;
+      let suppressClick = false;
 
-      const collapseList = () => {
-        if (!hasActivePlaceView() || placeDetailOpen) return;
-        placesDrawerOpen = false;
-        updatePlacesPanel();
+      const canDrag = () => (placesDrawerOpen || placeDetailOpen) && hasActivePlaceView();
+
+      const resetDrag = () => {
+        dragging = false;
+        dragActive = false;
+        dragDelta = 0;
+        drawer.classList.remove('dragging');
+        drawer.style.transform = '';
       };
 
-      handle.onclick = () => {
-        if (placeDetailOpen) {
-          closePlaceDetail();
+      const finishDrag = () => {
+        if (!dragActive) return;
+        const delta = dragDelta;
+        const wasDragging = dragging;
+        resetDrag();
+
+        if (!wasDragging) return;
+
+        suppressClick = true;
+        setTimeout(() => { suppressClick = false; }, 0);
+
+        if (delta > DRAG_THRESHOLD) {
+          collapseDrawer();
           return;
         }
-        if (placesDrawerOpen) collapseList();
-        else openPlacesList();
-      };
-      header.onclick = () => {
-        if (!placeDetailOpen && !placesDrawerOpen) openPlacesList();
+        if (delta < -DRAG_THRESHOLD && placesDrawerOpen && !placeDetailOpen && !drawerFullScreen) {
+          drawerFullScreen = true;
+          updatePlacesPanel();
+          scheduleUrlSync();
+        }
       };
 
-      document.getElementById('show-list-btn').onclick = openPlacesList;
+      drawer.addEventListener('pointerdown', (e) => {
+        if (!canDrag()) return;
+        if (e.target.closest('button, a, input')) return;
+
+        const fromHandle = e.target.closest('#places-drawer-handle');
+        const fromHeader = e.target.closest('.places-drawer-header');
+        const fromDetail = placeDetailOpen && e.target.closest('#places-detail-panel');
+        const fromListTop = placesDrawerOpen && !placeDetailOpen
+          && e.target.closest('#places-list-panel')
+          && (list?.scrollTop || 0) <= 0;
+
+        if (!fromHandle && !fromHeader && !fromDetail && !fromListTop) return;
+
+        dragActive = true;
+        dragStartY = e.clientY;
+        dragDelta = 0;
+      });
+
+      drawer.addEventListener('pointermove', (e) => {
+        if (!dragActive) return;
+        dragDelta = e.clientY - dragStartY;
+        if (!dragging && Math.abs(dragDelta) < 8) return;
+
+        if (!dragging) {
+          dragging = true;
+          drawer.classList.add('dragging');
+          try { drawer.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+        }
+
+        e.preventDefault();
+        if (dragDelta > 0) {
+          drawer.style.transform = `translateY(${dragDelta}px)`;
+        } else if (placesDrawerOpen && !placeDetailOpen && !drawerFullScreen) {
+          drawer.style.transform = `translateY(${dragDelta}px)`;
+        }
+      });
+
+      drawer.addEventListener('pointerup', finishDrag);
+      drawer.addEventListener('pointercancel', finishDrag);
+
+      handle.addEventListener('click', (e) => {
+        if (suppressClick) return;
+        e.stopPropagation();
+        if (placeDetailOpen) {
+          collapseDrawer();
+          return;
+        }
+        if (placesDrawerOpen) collapseDrawer();
+        else openPlacesList();
+      });
+
+      document.getElementById('show-list-btn').onclick = () => openPlacesList();
+      document.getElementById('show-map-btn').onclick = () => collapseDrawer();
     }
 
     function renderPlacesList() {
@@ -1479,9 +1713,18 @@ out center;`;
       const countEl = document.getElementById('places-count');
       const titleEl = document.getElementById('places-drawer-title');
 
-      if (placesLoading) return;
-
       const chip = chips.find(c => c.id === activeFilter);
+
+      if (placesLoading && hasActivePlaceView()) {
+        titleEl.textContent = chip ? chip.label.trim() : 'Lugares';
+        countEl.textContent = '';
+        hint.style.display = 'block';
+        hint.textContent = 'Cargando lugares en esta zona…';
+        list.innerHTML = '';
+        updatePlacesPanel();
+        return;
+      }
+
       const zoomTooLow = map && map.getZoom() < MIN_POI_ZOOM;
 
       if (zoomTooLow && hasActivePlaceView()) {
@@ -1501,7 +1744,7 @@ out center;`;
         titleEl.textContent = 'Lugares';
         countEl.textContent = '';
         hint.style.display = 'block';
-        hint.textContent = 'Elige una categoría o busca (ej. pipicans)';
+        hint.textContent = 'Elige una categoría o busca (ej. pipicans). Pulsa ◎ para usar tu ubicación';
         list.innerHTML = '';
         updatePlacesPanel();
         return;
@@ -1550,6 +1793,7 @@ out center;`;
       selectedPlaceId = place.id;
       placeDetailOpen = true;
       placesDrawerOpen = false;
+      drawerFullScreen = false;
       map.flyTo({ center: [place.lng, place.lat], zoom: Math.max(map.getZoom(), 15), duration: 700 });
       renderMarkers();
       renderPlaceDetail(place);
@@ -1559,12 +1803,12 @@ out center;`;
 
     function renderPlaceDetail(place) {
       const panel = document.getElementById('places-detail-panel');
-      const center = getMapCenter();
-      const dist = formatDistance(distanceKm(center, place));
+      const origin = getDistanceOrigin();
+      const dist = formatDistance(distanceKm(origin, place));
 
       const infoRows = [
         { label: 'Categoría', value: place.categoryLabel },
-        { label: 'Distancia', value: dist },
+        { label: userLocation ? 'Distancia desde ti' : 'Distancia', value: dist },
         { label: 'Coordenadas', value: `${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}` },
         ...place.info,
       ];
@@ -1614,10 +1858,7 @@ out center;`;
     }
 
     function closePlaceDetail() {
-      placeDetailOpen = false;
-      placesDrawerOpen = false;
-      updatePlacesPanel();
-      scheduleUrlSync();
+      collapseDrawer();
     }
 
     // Pin Figma: blob rosa 34×40 + cápsula blanca 24×23 con emoji
@@ -1633,8 +1874,7 @@ out center;`;
         <div class="pin">
           ${PIN_SVG.replace('<svg', '<svg class="pin-shape"')}
           <div class="pin-icon">${place.emoji}</div>
-        </div>
-        ${labelHtml}`;
+        </div>${labelHtml}`;
       el.onclick = (e) => {
         e.stopPropagation();
         selectPlace(place);
@@ -1645,9 +1885,10 @@ out center;`;
     function renderMarkers() {
       markers.forEach(m => m.remove());
       markers.length = 0;
-      if (placesLoading || !hasActivePlaceView()) return;
+      if (!hasActivePlaceView()) return;
 
       const visible = getVisiblePlaces();
+      if (placesLoading && !visible.length) return;
 
       let index = 0;
       const batchSize = 80;
