@@ -4,7 +4,10 @@ Preview del mapa personalizado (OpenStreetMap + estilo Musky) para Barcelona.
 
 ## Ver online
 
-Tras activar GitHub Pages: **https://ana-duque-musky.github.io/mapa/**
+1. En el repo: **Settings → Pages → Build and deployment → Source: GitHub Actions** (solo la primera vez).
+2. Tras el workflow verde: **https://ana-duque-musky.github.io/mapa/**
+
+Código: [github.com/Ana-Duque-Musky/mapa](https://github.com/Ana-Duque-Musky/mapa)
 
 ## Archivos
 
