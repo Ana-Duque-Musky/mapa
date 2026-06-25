@@ -18,7 +18,9 @@ Los POIs (parques, pipicans, fuentes, veterinarios, playas caninas) se cargan de
 | Archivo | Descripción |
 |---|---|
 | `index.html` | Mapa interactivo |
+| `osm-places-bcn.js` | Bundle estático POIs Barcelona (~1 316 lugares) |
 | `fetch-osm-places-es.py` | Script para descargar POIs de toda España |
+| [`DATA_SOURCES.md`](DATA_SOURCES.md) | **Fuentes de datos, APIs, links y detalle de cada archivo** |
 
 Sin backend, sin API keys.
 
